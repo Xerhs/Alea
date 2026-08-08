@@ -1,0 +1,15 @@
+# Alea source-tag signing keys (SSH allowed-signers format).
+#
+# Verify a release tag against this file:
+#
+#   git -c gpg.ssh.allowedSignersFile=allowed_signers tag -v v0.11.0-beta
+#
+# TRUST MODEL — read before relying on this: this is a single-maintainer
+# key, published in the same repository it signs (trust-on-first-use).
+# An attacker who controls the repository could replace this file and the
+# signatures together; cross-check the key against an independent channel
+# (the project site, an earlier clone) before treating verification as
+# meaningful. This is NOT the multi-person production signing governance
+# docs/SIGNING-GOVERNANCE.md defines for a future stable release — no
+# such governance exists yet, and no release is production-signed.
+312983771+Xerhs@users.noreply.github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHA/9fIERrMs0bLgTSZh5KBYSVCiDiT+20AqaYFMtYHu

@@ -32,6 +32,26 @@ everything below.
 - Read-back verification (step 6 below) and independent signature
   checking reduce, but do not eliminate, distribution risk.
 
+## 0a. Verifying the signed source tag
+
+Release tags are SSH-signed, and the signing public key is committed at
+the repository root as `allowed_signers`. From a clone:
+
+```
+git -c gpg.ssh.allowedSignersFile=allowed_signers tag -v v0.11.0-beta
+```
+
+A good result prints `Good "git" signature for
+312983771+Xerhs@users.noreply.github.com` with the key's SHA256
+fingerprint. The same honesty rule as everything else in this document:
+the keyring ships in the repository it vouches for, so this check proves
+the tag matches the key *the repository documents* — trust-on-first-use.
+Cross-check the key fingerprint against an independent channel (an
+earlier clone, the project site) before treating it as more than that.
+This is a single-maintainer key, not the multi-person production signing
+governance described in `docs/SIGNING-GOVERNANCE.md`; no release is
+production-signed.
+
 ## 1. The complete procedure (SPEC §10)
 
 Do these in order. Skipping steps, especially 1–4 and 8, defeats the

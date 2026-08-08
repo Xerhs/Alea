@@ -100,6 +100,18 @@ jobs:
             echo "MUST NOT proceed from an unsigned tag once that governance exists."
             exit 1
           fi
+          # Cryptographic verification against the repo-committed
+          # `allowed_signers` key (2026-08-09; upgraded from the earlier
+          # soft warning). Honest scope: the keyring ships in the same
+          # repository as the tag, so this proves "signed by the key the
+          # checked-out source documents" (TOFU) — not an independent
+          # trust root; see allowed_signers' own trust-model note. Still
+          # a real gate: a tag signed by any OTHER key now fails.
+          git -c gpg.ssh.allowedSignersFile=allowed_signers tag -v "$TAG" || {
+            echo "FAIL: tag '$TAG' signature does not verify against the committed";
+            echo "allowed_signers keyring.";
+            exit 1;
+          }
           # A real verification (checking the signature against a trusted
           # keyring) additionally requires that keyring to be provisioned
           # in this workflow's environment, which depends on the signing
