@@ -12,4 +12,8 @@
 # meaningful. This is NOT the multi-person production signing governance
 # docs/SIGNING-GOVERNANCE.md defines for a future stable release — no
 # such governance exists yet, and no release is production-signed.
-312983771+Xerhs@users.noreply.github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHA/9fIERrMs0bLgTSZh5KBYSVCiDiT+20AqaYFMtYHu
+#
+# Key: dedicated tag-signing key (alea-tag-signing, Ed25519, fingerprint
+# SHA256:CxtkbKytle8ka7yGbZ4autLODy3sxkg+L7VIV/OIezI) — deliberately NOT
+# the maintainer's repository-authentication key.
+312983771+Xerhs@users.noreply.github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJHXQwdMdxVcD7I8P4w3Vwyx/RlLE7OO30hKHywRvDSM
