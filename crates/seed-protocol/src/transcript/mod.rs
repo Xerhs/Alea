@@ -29,6 +29,7 @@ use core::sync::atomic::{compiler_fence, Ordering};
 
 use seed_core::contracts::{
     ArchId, SourceTag, TargetBits, MAX_ALGO_ID, MAX_MACHINE_SOURCE_BYTES, MAX_PHYSICAL_EVENTS,
+    MAX_TPM2_SOURCE_BYTES,
     MAX_SOURCE_RECORDS, TRANSCRIPT_CAPACITY,
 };
 use seed_core::hash;
@@ -55,7 +56,11 @@ const DOMAIN: &[u8] = b"Alea/Entropy/v1\0";
 /// `decode`) is for this array to stay ascending after the append — a wire
 /// value `< 0x10` (e.g. the earlier-considered `0x04`) would break exactly
 /// that invariant. See SPEC_USB_TRNG.md §6.2's byte-layout proof.
-const CANONICAL_TAG_BYTES: [u8; 6] = [0x01, 0x02, 0x03, 0x10, 0x11, 0x12];
+///
+/// `0x13` (`Tpm2GetRandom`) is likewise APPENDED (SPEC_TPM_ENTROPY.md
+/// §6.1/§6.2), keeping the array ascending for the same reason.
+/// `0x14` (`Tpm12GetRandom`) likewise (SPEC_TPM12_ENTROPY.md §1).
+const CANONICAL_TAG_BYTES: [u8; 8] = [0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0x13, 0x14];
 
 /// Fixed header size after the domain string (SPEC §19.2):
 /// `architecture_identifier`(2) + `requested_entropy_bits`(2) +
@@ -86,15 +91,17 @@ const RECORD_OVERHEAD: usize = 4;
 const RESERVED_OVERHEAD: usize = DOMAIN.len() + HEADER_LEN + MAX_SOURCE_RECORDS * RECORD_OVERHEAD;
 
 /// Shared staging budget for record payload bytes (see
-/// `RESERVED_OVERHEAD`). `TRANSCRIPT_CAPACITY` (1024) minus the maximum
-/// fixed overhead (16 + 9 + 6*4 = 49) leaves 975 bytes (SPEC_USB_TRNG.md
-/// §6.3): up to 4 machine-source records (`ApprovedEfiRng`, `X86Rdseed64`,
-/// `X86RdrandSupplementary`, `ApprovedUsbTrng`) at `MAX_ALGO_ID` +
-/// `MAX_MACHINE_SOURCE_BYTES` (32 + 64 = 96, the per-record data cap having
-/// doubled 32 → 64 for audit finding L2) each = 384 bytes, plus
-/// `DiceRolls` + `CoinFlips` sharing at most `MAX_PHYSICAL_EVENTS` (512)
-/// total payload bytes plus up to `MAX_ALGO_ID` (32) algo-id bytes each =
-/// 512 + 64 = 576 bytes; 384 + 576 = 960 <= 975.
+/// `RESERVED_OVERHEAD`). `TRANSCRIPT_CAPACITY` (2048) minus the maximum
+/// fixed overhead (16 + 9 + 7*4 = 53) leaves 1995 bytes (SPEC_USB_TRNG.md
+/// §6.3, SPEC_TPM_ENTROPY.md §6.3): up to 4 machine-source records
+/// (`ApprovedEfiRng`, `X86Rdseed64`, `X86RdrandSupplementary`,
+/// `ApprovedUsbTrng`) at `MAX_ALGO_ID` + `MAX_MACHINE_SOURCE_BYTES`
+/// (32 + 64 = 96, the per-record data cap having doubled 32 → 64 for audit
+/// finding L2) each = 384 bytes, plus `Tpm2GetRandom` at `MAX_ALGO_ID` +
+/// `MAX_TPM2_SOURCE_BYTES` (32 + 32) = 64 bytes, plus `DiceRolls` +
+/// `CoinFlips` sharing at most `MAX_PHYSICAL_EVENTS` (512) total payload
+/// bytes plus up to `MAX_ALGO_ID` (32) algo-id bytes each = 512 + 64 = 576
+/// bytes; 384 + 64 + 576 = 1024 <= 1995.
 const SCRATCH_BUDGET: usize = TRANSCRIPT_CAPACITY - RESERVED_OVERHEAD;
 
 /// Errors from building or parsing a canonical entropy transcript (SPEC
@@ -135,7 +142,7 @@ pub enum TranscriptError {
     Oversized,
     /// `decode` input's leading bytes did not match `DOMAIN`.
     BadDomain,
-    /// `decode` saw a `source_tag` byte that is not one of the six
+    /// `decode` saw a `source_tag` byte that is not one of the eight
     /// defined values (SPEC §19.1, SPEC_USB_TRNG.md §6.1: "unknown fields
     /// are not silently ignored").
     UnknownTag,
@@ -195,6 +202,10 @@ fn max_len_for(tag: SourceTag) -> usize {
         | SourceTag::X86Rdseed64
         | SourceTag::X86RdrandSupplementary
         | SourceTag::ApprovedUsbTrng => MAX_MACHINE_SOURCE_BYTES,
+        // SPEC_TPM_ENTROPY.md §7.2/§9: exactly one 32-byte block — the
+        // tighter dedicated cap, not the shared machine cap (see
+        // `MAX_TPM2_SOURCE_BYTES`'s own doc comment).
+        SourceTag::Tpm2GetRandom | SourceTag::Tpm12GetRandom => MAX_TPM2_SOURCE_BYTES,
         SourceTag::DiceRolls | SourceTag::CoinFlips => MAX_PHYSICAL_EVENTS,
     }
 }
@@ -209,7 +220,9 @@ fn sibling_physical_tag(tag: SourceTag) -> Option<SourceTag> {
         SourceTag::ApprovedEfiRng
         | SourceTag::X86Rdseed64
         | SourceTag::X86RdrandSupplementary
-        | SourceTag::ApprovedUsbTrng => None,
+        | SourceTag::ApprovedUsbTrng
+        | SourceTag::Tpm2GetRandom
+        | SourceTag::Tpm12GetRandom => None,
     }
 }
 
@@ -244,7 +257,9 @@ fn validate_content(tag: SourceTag, bytes: &[u8]) -> Result<(), TranscriptError>
         SourceTag::ApprovedEfiRng
         | SourceTag::X86Rdseed64
         | SourceTag::X86RdrandSupplementary
-        | SourceTag::ApprovedUsbTrng => {}
+        | SourceTag::ApprovedUsbTrng
+        | SourceTag::Tpm2GetRandom
+        | SourceTag::Tpm12GetRandom => {}
     }
     Ok(())
 }
@@ -260,6 +275,8 @@ fn tag_from_u8(v: u8) -> Option<SourceTag> {
         0x10 => Some(SourceTag::DiceRolls),
         0x11 => Some(SourceTag::CoinFlips),
         0x12 => Some(SourceTag::ApprovedUsbTrng),
+        0x13 => Some(SourceTag::Tpm2GetRandom),
+        0x14 => Some(SourceTag::Tpm12GetRandom),
         _ => None,
     }
 }
@@ -585,7 +602,7 @@ pub fn decode(bytes: &[u8]) -> Result<DecodedTranscript<'_>, TranscriptError> {
     }
 
     let mut records: [Option<DecodedRecord<'_>>; MAX_SOURCE_RECORDS] =
-        [None, None, None, None, None, None];
+        [None, None, None, None, None, None, None, None];
     let mut last_tag: i32 = -1;
     // Running combined length of `DiceRolls`+`CoinFlips` records seen so
     // far (SPEC §17.3: one shared physical-event history buffer). Mirrors
@@ -950,13 +967,14 @@ mod tests {
         assert_eq!(decoded.record_count, 2);
     }
 
-    /// All six defined tags fill the builder to `MAX_SOURCE_RECORDS`
-    /// exactly (today's tag set has exactly 6 members — SPEC_USB_TRNG.md
-    /// §6.1 added `ApprovedUsbTrng` — so `TooManyRecords` cannot be reached
-    /// via distinct valid tags; the capacity check exists as a
+    /// All eight defined tags fill the builder to `MAX_SOURCE_RECORDS`
+    /// exactly (SPEC_USB_TRNG.md §6.1 added `ApprovedUsbTrng`,
+    /// SPEC_TPM_ENTROPY.md §6.1 `Tpm2GetRandom`, SPEC_TPM12_ENTROPY.md §1
+    /// `Tpm12GetRandom` — so `TooManyRecords` cannot be reached via
+    /// distinct valid tags; the capacity check exists as a
     /// forward-compatible invariant guard).
     #[test]
-    fn add_source_all_six_tags_fills_builder() {
+    fn add_source_all_eight_tags_fills_builder() {
         let mut b = TranscriptBuilder::new();
         b.add_source(SourceTag::ApprovedEfiRng, &[], &[1]).unwrap();
         b.add_source(SourceTag::X86Rdseed64, &[], &[2]).unwrap();
@@ -965,7 +983,45 @@ mod tests {
         b.add_source(SourceTag::DiceRolls, &[], &[4]).unwrap();
         b.add_source(SourceTag::CoinFlips, &[], &[1]).unwrap();
         b.add_source(SourceTag::ApprovedUsbTrng, &[], &[5]).unwrap();
+        b.add_source(SourceTag::Tpm2GetRandom, &[], &[6]).unwrap();
+        b.add_source(SourceTag::Tpm12GetRandom, &[], &[7]).unwrap();
         assert_eq!(b.record_count(), MAX_SOURCE_RECORDS);
+    }
+
+    // ---- tpm2 (0x13): the SPEC_TPM_ENTROPY.md §6.2 regressions, same
+    // shape as the usb-trng (0x12) pair below: appended tag keeps
+    // `CANONICAL_TAG_BYTES` ascending, so a TPM-present session both
+    // serializes in ascending body order and round-trips through `decode`,
+    // and a TPM-absent session stays byte-identical to v1 (covered by the
+    // untouched FROZEN vectors).
+
+    /// Dice + coin + tpm session: `0x13` must be emitted after `0x11` in
+    /// body order (bitmap bit 6 set), and `decode` must accept it with the
+    /// record intact — the exact invariant an inserted (non-appended) tag
+    /// value would have broken with `OutOfCanonicalOrder`.
+    #[test]
+    fn tpm_present_session_round_trips_in_canonical_order() {
+        let mut b = TranscriptBuilder::new();
+        let block: [u8; 32] = core::array::from_fn(|i| i as u8);
+        b.add_source(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &block)
+            .unwrap();
+        b.add_source(SourceTag::DiceRolls, &[], &[2, 4, 6]).unwrap();
+        b.add_source(SourceTag::CoinFlips, &[], &[0, 1]).unwrap();
+
+        let mut buf = [0u8; TRANSCRIPT_CAPACITY];
+        let len = b.serialize(ArchId::X86_64, TargetBits::Bits256, 2, &mut buf);
+
+        // Presence bitmap (big-endian u16 at header offset 6 after the
+        // domain string): bits 3 (0x10), 4 (0x11) and 6 (0x13) set.
+        let bitmap = be_u16(&buf, DOMAIN.len() + 6);
+        assert_eq!(bitmap, 0b0101_1000);
+
+        let decoded = decode(&buf[..len]).expect("tpm-present session must decode");
+        assert_eq!(decoded.record_count, 3);
+        let last = decoded.records[2].as_ref().unwrap();
+        assert_eq!(last.tag, SourceTag::Tpm2GetRandom);
+        assert_eq!(last.algo_id, b"TPM2/GetRandom");
+        assert_eq!(last.bytes, &block);
     }
 
     // ---- build -> decode round trip ----
@@ -1114,16 +1170,18 @@ mod tests {
         assert_eq!(out, out2, "USB-absent finalize must be deterministic/unaffected");
     }
 
-    /// SCRATCH_BUDGET boundary test with `0x12` present (SPEC_USB_TRNG.md
-    /// §6.3): all four machine tags (`ApprovedEfiRng`, `X86Rdseed64`,
-    /// `X86RdrandSupplementary`, `ApprovedUsbTrng`) staged simultaneously at
-    /// `MAX_ALGO_ID` + `MAX_MACHINE_SOURCE_BYTES` each (4 × (32 + 64) = 384
-    /// bytes total, the per-record data cap having doubled to 64 for audit
-    /// finding L2), plus `DiceRolls`+`CoinFlips` sharing the full
-    /// `MAX_PHYSICAL_EVENTS` (512 bytes) — 896 bytes total, within the
-    /// 975-byte `SCRATCH_BUDGET` — must all fit and round-trip through decode.
+    /// SCRATCH_BUDGET boundary test with `0x12`, `0x13` and `0x14` present
+    /// (SPEC_USB_TRNG.md §6.3, SPEC_TPM_ENTROPY.md §6.3): all five machine
+    /// tags staged simultaneously at their per-tag maxima — four at
+    /// `MAX_ALGO_ID` + `MAX_MACHINE_SOURCE_BYTES` (4 × (32 + 64) = 384
+    /// bytes, the per-record data cap having doubled to 64 for audit
+    /// finding L2) plus `Tpm2GetRandom` at `MAX_ALGO_ID` +
+    /// `MAX_TPM2_SOURCE_BYTES` (32 + 32 = 64 bytes) — plus
+    /// `DiceRolls`+`CoinFlips` sharing the full `MAX_PHYSICAL_EVENTS`
+    /// (512 bytes) — 960 payload bytes total, within `SCRATCH_BUDGET` —
+    /// must all fit and round-trip through decode.
     #[test]
-    fn scratch_budget_accepts_all_four_machine_records_at_max_plus_physical_budget_exact() {
+    fn scratch_budget_accepts_all_six_machine_records_at_max_plus_physical_budget_exact() {
         let mut b = TranscriptBuilder::new();
         let algo = std::vec![0xAAu8; MAX_ALGO_ID];
         let data = std::vec![0xBBu8; MAX_MACHINE_SOURCE_BYTES];
@@ -1134,6 +1192,12 @@ mod tests {
             .unwrap();
         b.add_source(SourceTag::ApprovedUsbTrng, &algo, &data)
             .unwrap();
+        let tpm_data = std::vec![0xCCu8; MAX_TPM2_SOURCE_BYTES];
+        b.add_source(SourceTag::Tpm2GetRandom, &algo, &tpm_data)
+            .unwrap();
+        let tpm12_data = std::vec![0xDDu8; MAX_TPM2_SOURCE_BYTES];
+        b.add_source(SourceTag::Tpm12GetRandom, &algo, &tpm12_data)
+            .unwrap();
         let dice = std::vec![1u8; 300];
         b.add_source(SourceTag::DiceRolls, &[], &dice).unwrap();
         let coin = std::vec![0u8; MAX_PHYSICAL_EVENTS - 300];
@@ -1143,7 +1207,22 @@ mod tests {
         let mut buf = [0u8; TRANSCRIPT_CAPACITY];
         let len = b.serialize(ArchId::X86_64, TargetBits::Bits256, 1, &mut buf);
         let decoded = decode(&buf[..len]).expect("boundary-exact combo must decode");
-        assert_eq!(decoded.record_count, 6);
+        assert_eq!(decoded.record_count, 8);
+    }
+
+    /// `Tpm2GetRandom`'s per-record cap is `MAX_TPM2_SOURCE_BYTES` (32),
+    /// NOT the shared machine cap (SPEC_TPM_ENTROPY.md §6.3/§7.2): a
+    /// 33-byte TPM record is rejected even though every other machine tag
+    /// would accept it.
+    #[test]
+    fn tpm_record_larger_than_32_bytes_is_rejected() {
+        let mut b = TranscriptBuilder::new();
+        let data = std::vec![0xCCu8; MAX_TPM2_SOURCE_BYTES + 1];
+        assert_eq!(
+            b.add_source(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &data)
+                .unwrap_err(),
+            TranscriptError::SourceTooLong
+        );
     }
 
     // ---- reject direction: decode() malformed-input KATs ----
@@ -1161,10 +1240,11 @@ mod tests {
     /// the input length against `TRANSCRIPT_CAPACITY`, so it accepted
     /// wire-format transcripts larger than any real `serialize` output.
     /// Hand-crafted per the review's exact failure scenario: two physical
-    /// records each at their individual per-tag max (512 bytes) — every
-    /// per-field bound (`algo_len`, `data_len`) is individually satisfied,
-    /// but header(25) + 2*(4+512) = 1057 bytes exceeds `TRANSCRIPT_CAPACITY`
-    /// (1024).
+    /// records each at their individual per-tag max (512 bytes) = 1057
+    /// bytes, plus trailing padding to push the raw input past
+    /// `TRANSCRIPT_CAPACITY` (2048 since SPEC_TPM_ENTROPY.md §6.3 grew the
+    /// buffer; the aggregate length check fires on raw input length before
+    /// any field parsing, so the padding never has to parse).
     #[test]
     fn decode_rejects_input_larger_than_transcript_capacity() {
         let mut buf: Vec<u8> = Vec::new();
@@ -1186,6 +1266,7 @@ mod tests {
         buf.extend(core::iter::repeat(0u8).take(512));
 
         assert_eq!(buf.len(), 1057);
+        buf.extend(core::iter::repeat(0u8).take(TRANSCRIPT_CAPACITY));
         assert!(buf.len() > TRANSCRIPT_CAPACITY);
         assert_eq!(decode(&buf).unwrap_err(), TranscriptError::Oversized);
     }

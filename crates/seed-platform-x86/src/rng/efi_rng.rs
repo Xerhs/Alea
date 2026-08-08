@@ -424,6 +424,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 2
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#
         );
         seed_protocol::policy::parse(&toml).expect("well-formed test policy").efi_rng
@@ -696,6 +713,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 2
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
         let policy = seed_protocol::policy::parse(toml).unwrap().efi_rng;
         let mut provider = MockProvider {

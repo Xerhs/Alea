@@ -1,152 +1,75 @@
 # Alea
 
-**Status: EXPERIMENTAL — not externally audited. Do not use it to protect
-substantial funds.** Every production-capable build shows an on-screen
-warning to that effect. See [`SECURITY.md`](SECURITY.md).
-
-Alea is a standalone, **pre-operating-system** application for generating
+Alea is an air-gapped, pre-operating-system application that generates
 [BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
-recovery words (12 or 24) on a physical x86-64 computer — before Windows,
-Linux, or any general-purpose OS loads. It collects entropy from physical
-dice/coins and/or an explicitly-approved machine source, derives a
-mnemonic, requires you to type every word back with no echo, and only then
-shows the wallet fingerprint and first addresses so you can confirm your
-signing device restored the exact same wallet before funding it.
+recovery words (12 or 24) on a physical x86-64 computer -- booted from USB,
+before Windows, Linux, or any general-purpose OS loads. The core idea:
+mix entropy from dice and coins you personally witness with machine
+sources you do not have to trust, combined so the result is strong if any
+one contributing source was good. It then requires you to write the words
+down, type every word back with no echo, and confirm the derived wallet
+against your own signing device before you fund it.
 
-Design and threat model: [`docs/DESIGN.md`](docs/DESIGN.md).
+> **STATUS: EXPERIMENTAL -- not externally audited. Do not use it to
+> protect substantial funds.** Every production-capable build shows an
+> on-screen warning to that effect. See [SECURITY.md](SECURITY.md).
 
-## What Alea is *not*
+If you are satisfied trusting your hardware wallet's built-in seed
+generation, you do not need Alea.
 
-- **Not "memtest for seeds."** It deliberately **refuses** virtualized
-  platforms, remote-console paths, managed endpoints, and hardware it
-  cannot render secrets into safely — and tells you why. Refusal is a
-  feature; a tool that boots everywhere and trusts everything is not the
-  goal.
-- **Not a hardware wallet, secure element, or proof your computer is
-  trustworthy.** It removes the desktop OS from seed *generation* — it does
-  not remove the firmware, CPU, memory, display, your environment, the
-  compiler, or the release process from what you trust.
+## Features
 
-**If you are satisfied trusting your hardware wallet's built-in seed
-generation, you do not need Alea.**
+- Boots bare-metal from USB before any OS; opens no network, writes no files, keeps no logs.
+- Standard BIP39 output: any BIP39 wallet restores it; there is no Alea-specific seed.
+- Witnessable entropy: dice rolls and coin flips counted against an enforced 128/256-bit floor.
+- Machine sources (UEFI RNG, RDSEED) run under a compiled-in versioned policy, fail closed, and are credited zero counted bits.
+- Optional TPM entropy (2.0 and 1.2): strictly opt-in extras, each shipped policy-disabled until reviewed; credited zero counted bits and not presented as a security upgrade.
+- Refusal is a feature: detected virtualization, remote/serial consoles, managed endpoints, and unsafe display paths stop the ceremony with an explanation.
+- No-echo re-entry: every word must be typed back and match before the ceremony completes.
+- Derivation check: master fingerprint and first BIP44/49/84/86 addresses shown to compare against your signing device.
+- Never displays or exports a private key, xprv, or raw seed; watch-only export of public values (xpub, descriptor, QR) is a separate opt-in behind its own warning.
+- Optional BIP39 passphrase after re-entry; none is the default, and it is warned as unrecoverable if forgotten.
+- Every exit path scrubs secret state and leads to power-off (or an explicit wipe-and-return-to-menu that scrubs at least as much).
+- Desktop rehearsal edition (permanently watermarked, fixed public test vectors only), an offline web verifier, and an independent Python reference implementation for cross-checking.
 
-## Editions
+## Get started
 
-| | Production UEFI | Desktop test |
-|---|---|---|
-| Purpose | Generate a real mnemonic | Rehearse; cross-check public vectors |
-| Runs | Boots from USB, before any OS | Ordinary program on Windows/Linux |
-| Entropy | Real dice/coins and/or approved machine source | **Fixed public test vectors only** |
-| Marking | None (the real thing) | Permanent watermark; every phrase prefixed `PUBLIC TEST PHRASE — NEVER USE WITH FUNDS` |
+1. Download the release and check its signature and hashes through
+   independent channels -- [VERIFYING-MEDIA.md](VERIFYING-MEDIA.md) has
+   the exact commands.
+2. Write the image to a USB stick with a raw block-copy tool, then read
+   the stick back and compare its hash.
+3. Rehearse on the desktop test edition first
+   (`cargo run -p seed-desktop-test`) -- it uses fixed public test
+   entropy, is permanently watermarked, and can never produce a real
+   wallet.
+4. Boot the USB stick on a physical, network-disconnected machine and
+   follow the on-screen ceremony.
 
-**Never treat desktop-test output as a real wallet.** A separate
-chain-loaded **verifier** and an **offline web verifier** let anyone
-cross-check the implementation against frozen public test vectors. No
-watermarked or desktop build is ever a production seed generator.
+The full step-by-step walkthrough -- room preparation, entropy modes,
+re-entry, derivation check, backup, and shutdown -- is
+[QUICKSTART.md](QUICKSTART.md). Read it before doing this for real.
 
-## Using your seed in any wallet
+## Verify
 
-**The words are the whole wallet.** Alea gives you standard BIP39 words —
-the entire secret. Any BIP39 wallet (Trezor, Ledger, Coldcard, Sparrow,
-Electrum, …) restores it. There is no Alea-specific seed.
+Releases are built reproducibly: [REPRODUCING.md](REPRODUCING.md)
+describes rebuilding a release bit-for-bit from source, and
+[VERIFYING-MEDIA.md](VERIFYING-MEDIA.md) covers checking signatures and
+checksums and confirming the USB stick you boot matches what you
+verified.
 
-**One seed, every address type — the wallet chooses:**
+## Learn more
 
-| Type | Also called | First address |
-|---|---|---|
-| Legacy | BIP44 | `1…` |
-| Nested SegWit | BIP49 | `3…` |
-| Native SegWit | BIP84 | `bc1q…` |
-| Taproot | BIP86 | `bc1p…` |
-
-The address type is your wallet's derivation-path choice, not baked into
-the seed. To restore: type the words into your wallet's "restore from
-recovery phrase" screen — **the words alone are enough; no file is written.**
-
-**Optional watch-only / multisig export.** On a separate screen you
-deliberately open, behind its own warning, Alea can show the account
-extended public key (`xpub`/`zpub`), an output descriptor, and a QR code —
-for a **watch-only** wallet or a **multisig cosigner**. This is public data:
-it can watch but never spend, is never written to a file, and is never
-needed for an ordinary restore. A private key, `xprv`, or the raw seed is
-**never** shown or exported.
-
-**Confirm before you fund.** Alea previews a master fingerprint and the
-first address for each type. When you restore elsewhere, check it shows the
-**same** fingerprint/address. If it matches, send a small test amount first.
-If it does **not** match, stop — usually a passphrase or a different
-derivation path.
-
-**The passphrase caveat.** After re-entry, Alea offers an *optional* BIP39
-passphrase ("25th word"); "none" is the default. A passphrase creates a
-completely different wallet and is **unrecoverable if forgotten** — only set
-one you are certain you can reproduce exactly.
-
-## Do the ceremony
-
-Read [`QUICKSTART.md`](QUICKSTART.md) — the step-by-step walkthrough: verify
-the release, rehearse on the desktop edition, prepare the room, boot, roll
-dice, write words down, re-enter, check the derivation against your signing
-device, scrub, and power off.
-
-## Build and run
-
-A `rustup`-managed toolchain is required; `rust-toolchain.toml` pins the
-version and targets (`x86_64-unknown-uefi`, `x86_64-unknown-linux-musl`).
-On Debian/Ubuntu install `musl-tools`; the web-edition gate additionally
-needs `node` and binaryen `version_119` (`wasm-opt`). Full provisioning is
-in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-
-```sh
-source "$HOME/.cargo/env"                         # if not already on PATH
-export CARGO_TARGET_DIR="$HOME/.cache/alea/dev"   # any writable path
-
-./ci.sh                                            # everything CI runs
-cargo build -p seed-uefi-production --target x86_64-unknown-uefi --locked
-cargo run -p seed-desktop-test                     # desktop rehearsal (test entropy)
-cargo run -p seed-desktop-test -- check            # headless vector check
-cd reference/python && python3 -m unittest discover -s tests
-```
-
-Before writing a USB stick and booting real hardware, read
-[`VERIFYING-MEDIA.md`](VERIFYING-MEDIA.md); to reproduce a release build,
-[`REPRODUCING.md`](REPRODUCING.md); for Secure Boot,
-[`docs/secure-boot.md`](docs/secure-boot.md) (not a "just turn it off").
-
-## Repository map
-
-```
-README.md            This file.
-docs/DESIGN.md       Architecture and threat model.
-SECURITY.md          Experimental status, threat-model summary, reporting.
-QUICKSTART.md        Step-by-step ceremony walkthrough.
-VERIFYING-MEDIA.md   Release-verification and boot-media ceremony.
-REPRODUCING.md       Build-reproducibility instructions.
-docs/                User-facing guides + security audits.
-crates/              The Rust implementation.
-reference/python/    Independent reference implementation (public vectors).
-tools/               image-builder, verifiers, binary-policy-scanner.
-tests/vectors/       Frozen cross-implementation test vectors.
-entropy-policy.toml  Compiled-in, versioned machine-entropy policy.
-```
-
-## Documentation
-
-- [`docs/DESIGN.md`](docs/DESIGN.md) — architecture and threat model.
-- [`SECURITY.md`](SECURITY.md) — status, threat model, vulnerability reporting.
-- [`QUICKSTART.md`](QUICKSTART.md) — the ceremony, step by step.
-- Security audits: [`docs/ENTROPY-AUDIT.md`](docs/ENTROPY-AUDIT.md), [`docs/MENU-RETURN-AUDIT.md`](docs/MENU-RETURN-AUDIT.md).
-- User guides: [`bip39`](docs/bip39.md), [`dice-and-coins`](docs/dice-and-coins.md), [`machine-randomness`](docs/machine-randomness.md), [`re-entry`](docs/re-entry.md), [`derivation-verification`](docs/derivation-verification.md), [`passphrases`](docs/passphrases.md), [`backup-security`](docs/backup-security.md), [`uefi-trust`](docs/uefi-trust.md), [`secure-boot`](docs/secure-boot.md), [`alternatives`](docs/alternatives.md).
+| Document | Contents |
+|---|---|
+| [docs/DESIGN.md](docs/DESIGN.md) | Architecture, ceremony, entropy model, threat model |
+| [SECURITY.md](SECURITY.md) | Security posture, prohibited claims, vulnerability reporting |
+| [docs/machine-randomness.md](docs/machine-randomness.md) | What machine RNGs (including TPMs) can and cannot promise |
+| [docs/dice-and-coins.md](docs/dice-and-coins.md) | Physical entropy: how much, and what it does not prove |
+| [docs/backup-security.md](docs/backup-security.md) | Storing the written words: paper, metal, theft, fire |
 
 ## License
 
-Dual-licensed under **MIT** or **Apache-2.0**, at your option — see
-[LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE). Any
-contribution submitted for inclusion is dual-licensed as above, without
-additional terms.
-
-## Security
-
-See [`SECURITY.md`](SECURITY.md). Changes touching entropy, BIP39,
-derivation, the secret lifecycle, or the release system require separate
-review — this is not a casual-PR project for those areas.
+Dual-licensed under MIT or Apache-2.0, at your option -- see
+[LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
+Contributions are accepted under the same dual license.

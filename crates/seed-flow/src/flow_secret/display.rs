@@ -48,7 +48,9 @@ pub const WORD_STYLE: Style = SCREEN_STYLE;
 /// a conservative independent bound (4 rows at `2 * GLYPH_HEIGHT` each,
 /// SPEC §12.2 "Fixed layouts" — any legitimate change to that grid is a
 /// WP-10-owned layout change, not a secret-handling one).
-const CONTROLS_Y: u32 = 4 * (seed_gop_ui::font::GLYPH_HEIGHT * 2) + seed_gop_ui::font::GLYPH_HEIGHT;
+const CONTROLS_Y: u32 = seed_gop_ui::layout::WORD_GRID_TOP
+    + 4 * (seed_gop_ui::font::GLYPH_HEIGHT * 2)
+    + seed_gop_ui::font::GLYPH_HEIGHT;
 
 // ============================================================================
 // Design doc §4 Stage 6: "word-slot panels with CAPTION indexes"
@@ -75,7 +77,14 @@ fn slot_origin(slot: u8) -> (u32, u32) {
     let slot = u32::from(slot) % (WORD_SLOT_COLUMNS * WORD_SLOT_ROWS);
     let col = slot % WORD_SLOT_COLUMNS;
     let row = slot / WORD_SLOT_COLUMNS;
-    (col * WORD_SLOT_CELL_W, row * WORD_SLOT_CELL_H)
+    // Grid offset mirror (Stage-6 shell restyle, 2026-08-09): keep in
+    // lockstep with `seed_gop_ui::font::slot_origin`, which now places
+    // the grid at the shared `layout::WORD_GRID_LEFT/TOP` origin inside
+    // the chrome shell's content area.
+    (
+        seed_gop_ui::layout::WORD_GRID_LEFT + col * WORD_SLOT_CELL_W,
+        seed_gop_ui::layout::WORD_GRID_TOP + row * WORD_SLOT_CELL_H,
+    )
 }
 
 /// The "NN. " slot-index label `draw_word` itself draws as the first 4
@@ -102,9 +111,35 @@ pub const DESTROY_PROMPT: &str = "[D] Destroy phrase and shut down";
 /// once per slot, unchanged (SPEC §12.2: no concatenated mnemonic
 /// string) — only the surrounding panel fill and the label-recolor pass
 /// are new.
-pub fn render_mnemonic_display(fb: &mut dyn Framebuffer, indexes: &[u16], count: usize) {
+/// Stage-6 BACKUP screen title (design doc §4 Stage 6 shell,
+/// 2026-08-09 restyle: the mnemonic screen joins the redesigned shell —
+/// chrome header/footer, 2x title — with the word-grid security contract
+/// untouched).
+pub const BACKUP_TITLE: &str = "Write down your recovery phrase";
+
+pub fn render_mnemonic_display(fb: &mut dyn Framebuffer, indexes: &[u16], count: usize, build: &'static str) {
+    seed_gop_ui::font::scrub_fill(fb, theme::BG);
+    crate::chrome::draw_header(fb, &crate::chrome::Chrome { stage: 6, sub: None, build });
+
+    let title_y = crate::chrome::content_top() + seed_gop_ui::layout::LINE_PITCH / 2;
+    seed_gop_ui::font::draw_text_scaled(
+        fb,
+        seed_gop_ui::layout::MARGIN_X,
+        title_y,
+        BACKUP_TITLE,
+        theme::on_bg(theme::TEXT),
+        2,
+    );
+
     let rows = (count as u32).div_ceil(WORD_SLOT_COLUMNS).max(1);
-    panel::panel(fb, 0, 0, WORD_SLOT_COLUMNS * WORD_SLOT_CELL_W, rows * WORD_SLOT_CELL_H);
+    let pad = seed_gop_ui::font::GLYPH_WIDTH;
+    panel::panel(
+        fb,
+        seed_gop_ui::layout::WORD_GRID_LEFT - pad,
+        seed_gop_ui::layout::WORD_GRID_TOP - pad,
+        WORD_SLOT_COLUMNS * WORD_SLOT_CELL_W + 2 * pad,
+        rows * WORD_SLOT_CELL_H + 2 * pad,
+    );
 
     for (slot, &index) in indexes.iter().take(count).enumerate() {
         draw_word(fb, slot as u8, index, theme::on_panel(theme::TEXT));
@@ -115,7 +150,7 @@ pub fn render_mnemonic_display(fb: &mut dyn Framebuffer, indexes: &[u16], count:
         seed_gop_ui::font::draw_text(fb, ox, oy, label_str, theme::on_panel(theme::CAPTION));
     }
 
-    let x = seed_gop_ui::font::GLYPH_WIDTH * 2;
+    let x = seed_gop_ui::layout::MARGIN_X;
     seed_gop_ui::font::draw_text(fb, x, CONTROLS_Y, HIDE_PROMPT, SCREEN_STYLE);
     seed_gop_ui::font::draw_text(
         fb,
@@ -123,6 +158,14 @@ pub fn render_mnemonic_display(fb: &mut dyn Framebuffer, indexes: &[u16], count:
         CONTROLS_Y + seed_gop_ui::font::GLYPH_HEIGHT + seed_gop_ui::font::GLYPH_HEIGHT / 2,
         DESTROY_PROMPT,
         SCREEN_STYLE,
+    );
+
+    crate::chrome::draw_footer(
+        fb,
+        &[
+            crate::chrome::KeyHint { key: "H", label: "Hide & re-enter", enabled: true, danger: false },
+            crate::chrome::KeyHint { key: "D", label: "Destroy", enabled: true, danger: true },
+        ],
     );
 }
 
@@ -191,16 +234,39 @@ pub enum DestroyDecision {
 /// reserves exclusively for the destroy path and the fatal-failure
 /// chain. Every other line keeps the ordinary screen style; the copy
 /// itself is untouched.
-pub fn render_destroy_confirm(fb: &mut dyn Framebuffer) {
-    seed_gop_ui::font::scrub_fill(fb, 0);
+pub fn render_destroy_confirm(fb: &mut dyn Framebuffer, build: &'static str) {
+    seed_gop_ui::font::scrub_fill(fb, theme::BG);
+    crate::chrome::draw_header(fb, &crate::chrome::Chrome { stage: 6, sub: None, build });
+
     let margin = seed_gop_ui::layout::MARGIN_X;
     let pitch = seed_gop_ui::layout::LINE_PITCH;
-    let mut y = margin;
+    // Design doc §4 Stage 6: destroy's second confirmation is
+    // DANGER-styled — the mandated lines render inside a warn panel, the
+    // heading in `theme::DANGER`, wording verbatim (SPEC §22.7 / §26
+    // amendment).
+    let panel_y = crate::chrome::content_top() + pitch;
+    let panel_h = (DESTROY_CONFIRM_LINES.len() as u32) * pitch + pitch;
+    let (fb_w, _) = fb.dims();
+    panel::warn_panel(fb, margin, panel_y, fb_w.saturating_sub(2 * margin), panel_h);
+    let mut y = panel_y + pitch / 2;
     for (i, line) in DESTROY_CONFIRM_LINES.iter().enumerate() {
-        let style = if i == 0 { theme::on_bg(theme::DANGER) } else { SCREEN_STYLE };
-        seed_gop_ui::font::draw_text(fb, margin, y, line, style);
+        let style = if i == 0 {
+            theme::on_panel(theme::DANGER)
+        } else {
+            theme::on_panel(theme::TEXT)
+        };
+        seed_gop_ui::font::draw_text(fb, margin + seed_gop_ui::font::GLYPH_WIDTH, y, line, style);
         y += pitch;
     }
+
+    crate::chrome::draw_footer(
+        fb,
+        &[
+            crate::chrome::KeyHint { key: "M", label: "Wipe, menu", enabled: true, danger: true },
+            crate::chrome::KeyHint { key: "P", label: "Wipe, power off", enabled: true, danger: true },
+            crate::chrome::KeyHint { key: "N", label: "Cancel", enabled: true, danger: false },
+        ],
+    );
 }
 
 /// Block until the second destroy confirmation is answered: `M`/`m` wipes
@@ -312,7 +378,7 @@ mod tests {
     fn render_draws_every_word_slot() {
         let mut fb = VecFb::new(1024, 768);
         let indexes = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-        render_mnemonic_display(&mut fb, &indexes, 12);
+        render_mnemonic_display(&mut fb, &indexes, 12, "test-build");
         assert!(fb.buf.iter().any(|&p| p == WORD_STYLE.fg));
     }
 
@@ -329,11 +395,11 @@ mod tests {
         for (i, v) in indexes.iter_mut().enumerate() {
             *v = (i as u16) + 1;
         }
-        render_mnemonic_display(&mut fb12, &indexes, 12);
+        render_mnemonic_display(&mut fb12, &indexes, 12, "test-build");
         let count12 = fb12.buf.iter().filter(|&&p| p != 0).count();
 
         let mut fb24 = VecFb::new(1024, 768);
-        render_mnemonic_display(&mut fb24, &indexes, 24);
+        render_mnemonic_display(&mut fb24, &indexes, 24, "test-build");
         let count24 = fb24.buf.iter().filter(|&&p| p != 0).count();
 
         assert!(count24 > count12, "24-word render must draw strictly more than the 12-word render");
@@ -363,8 +429,8 @@ mod tests {
 
         let mut fb_a = VecFb::new(1024, 768);
         let mut fb_b = VecFb::new(1024, 768);
-        render_mnemonic_display(&mut fb_a, &indexes_a, 12);
-        render_mnemonic_display(&mut fb_b, &indexes_b, 12);
+        render_mnemonic_display(&mut fb_a, &indexes_a, 12, "test-build");
+        render_mnemonic_display(&mut fb_b, &indexes_b, 12, "test-build");
 
         let (cx, cy) = slot_origin(5);
         for y in 0..768u32 {
@@ -401,7 +467,7 @@ mod tests {
     fn word_slot_index_labels_render_in_caption_color() {
         let mut fb = VecFb::new(1024, 768);
         let indexes = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-        render_mnemonic_display(&mut fb, &indexes, 12);
+        render_mnemonic_display(&mut fb, &indexes, 12, "test-build");
         assert!(fb.buf.iter().any(|&p| p == theme::CAPTION), "no slot label was drawn in CAPTION");
     }
 
@@ -411,7 +477,7 @@ mod tests {
     fn word_grid_draws_on_a_panel_background() {
         let mut fb = VecFb::new(1024, 768);
         let indexes = [1u16, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-        render_mnemonic_display(&mut fb, &indexes, 12);
+        render_mnemonic_display(&mut fb, &indexes, 12, "test-build");
         assert!(fb.buf.iter().any(|&p| p == theme::PANEL), "no panel background was drawn behind the word grid");
     }
 
@@ -496,10 +562,13 @@ mod tests {
         fb.put_row(600, 0, &far_right_row);
         assert!(fb.buf.iter().any(|&p| p == 0x00FF_FFFF), "sanity: residue is present before rendering");
 
-        render_destroy_confirm(&mut fb);
+        render_destroy_confirm(&mut fb, "test-build");
 
+        // Row 0 now sits inside the chrome header band (Stage-6 shell,
+        // 2026-08-09): the residue must be REPLACED (scrub_fill + band
+        // fill), never survive.
         for x in 600..640 {
-            assert_eq!(fb.buf[x as usize], 0, "residual prior-screen pixel at x={x} was not cleared");
+            assert_ne!(fb.buf[x as usize], 0x00FF_FFFF, "residual prior-screen pixel at x={x} was not cleared");
         }
     }
 
@@ -518,9 +587,8 @@ mod tests {
     #[test]
     fn render_destroy_confirm_title_row_uses_danger_fg() {
         let mut fb = VecFb::new(800, 600);
-        render_destroy_confirm(&mut fb);
+        render_destroy_confirm(&mut fb, "test-build");
 
-        let margin = seed_gop_ui::layout::MARGIN_X;
         let pitch = seed_gop_ui::layout::LINE_PITCH;
         let glyph_h = seed_gop_ui::font::GLYPH_HEIGHT;
 
@@ -528,9 +596,14 @@ mod tests {
             (y0..y0 + glyph_h).any(|y| (0..800u32).any(|x| fb.buf[(y as usize) * 800 + x as usize] == theme::DANGER))
         };
 
-        assert!(band_has_danger(margin), "title row must render in DANGER");
+        // Stage-6 shell (2026-08-09): the mandated lines render inside a
+        // warn panel starting one pitch below the chrome header, heading
+        // first at half-pitch inset — mirror `render_destroy_confirm`'s
+        // own layout.
+        let heading_y = crate::chrome::content_top() + pitch + pitch / 2;
+        assert!(band_has_danger(heading_y), "title row must render in DANGER");
         for i in 1..DESTROY_CONFIRM_LINES.len() as u32 {
-            assert!(!band_has_danger(margin + i * pitch), "only the title row should render in DANGER (row {i})");
+            assert!(!band_has_danger(heading_y + i * pitch), "only the title row should render in DANGER (row {i})");
         }
     }
 }

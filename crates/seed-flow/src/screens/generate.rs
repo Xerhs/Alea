@@ -192,6 +192,8 @@ fn short_tag_name(tag: SourceTag) -> &'static str {
         SourceTag::X86Rdseed64 => "RDSEED",
         SourceTag::X86RdrandSupplementary => "RDRAND",
         SourceTag::ApprovedUsbTrng => "USB TRNG",
+        SourceTag::Tpm2GetRandom => "TPM",
+        SourceTag::Tpm12GetRandom => "TPM 1.2",
         SourceTag::DiceRolls | SourceTag::CoinFlips => "",
     }
 }

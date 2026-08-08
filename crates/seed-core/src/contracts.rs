@@ -314,6 +314,22 @@ pub enum SourceTag {
     /// hold (SPEC_USB_TRNG.md §6.2). MUST NOT be renumbered to `0x04` or any
     /// value `< 0x10`.
     ApprovedUsbTrng = 0x12,
+    /// `source_bytes`: one 32-byte health-checked `TPM2_GetRandom` block
+    /// (SPEC_TPM_ENTROPY.md §6.1, §9), fixed `algo_id` `"TPM2/GetRandom"`
+    /// — never TPM-supplied text. A claimed machine source, appended above
+    /// `0x12` for the same ascending-order reason as `ApprovedUsbTrng`'s
+    /// comment above (SPEC_TPM_ENTROPY.md §6.2): MUST stay `> 0x12` so the
+    /// consumer `CANONICAL_TAG_BYTES` array remains ascending after the
+    /// append and TPM-absent sessions stay byte-identical to v1.
+    Tpm2GetRandom = 0x13,
+    /// `source_bytes`: one 32-byte accumulated, health-checked TPM 1.2
+    /// `TPM_GetRandom` block (SPEC_TPM12_ENTROPY.md §1, §4), fixed
+    /// `algo_id` `"TPM12/GetRandom"` — never TPM-supplied text. A claimed
+    /// machine source, appended above `0x13` for the same ascending-order
+    /// reason as its siblings: MUST stay `> 0x13`. Distinct from
+    /// `Tpm2GetRandom` deliberately — different command set, different
+    /// RNG design, disclosed as such (SPEC_TPM12_ENTROPY.md §1).
+    Tpm12GetRandom = 0x14,
 }
 
 // ============================================================================
@@ -414,11 +430,22 @@ pub const MAX_MACHINE_SOURCE_BYTES: usize = 64;
 /// before the capacity-stop behavior (SPEC §17.3) engages.
 pub const MAX_PHYSICAL_EVENTS: usize = 512;
 
+/// Per-record byte cap for the `Tpm2GetRandom` (`0x13`) source
+/// (SPEC_TPM_ENTROPY.md §7.2, §9): the record is exactly one 32-byte
+/// `TPM2_GetRandom` block — deliberately NOT the shared
+/// `MAX_MACHINE_SOURCE_BYTES` cap, both because the spec pins the read
+/// size to the one every conformant TPM 2.0 can satisfy in full and
+/// because the tighter cap keeps the transcript worst-case budget
+/// (`TRANSCRIPT_CAPACITY` derivation below) smaller.
+pub const MAX_TPM2_SOURCE_BYTES: usize = 32;
+
 /// Maximum number of source records SPEC §19.1 defines that can
 /// realistically appear in one transcript: `ApprovedEfiRng` + `X86Rdseed64`
 /// + `X86RdrandSupplementary` + `DiceRolls` + `CoinFlips` +
-/// `ApprovedUsbTrng` (SPEC_USB_TRNG.md §6.1, §6.3) = 6.
-pub const MAX_SOURCE_RECORDS: usize = 6;
+/// `ApprovedUsbTrng` (SPEC_USB_TRNG.md §6.1, §6.3) + `Tpm2GetRandom`
+/// (SPEC_TPM_ENTROPY.md §6.1, §6.3) + `Tpm12GetRandom`
+/// (SPEC_TPM12_ENTROPY.md §1) = 8.
+pub const MAX_SOURCE_RECORDS: usize = 8;
 
 /// Fixed capacity of the canonical entropy transcript buffer
 /// (SPEC §19.1, §19.2: "the complete transcript fits a fixed reviewed
@@ -428,26 +455,34 @@ pub const MAX_SOURCE_RECORDS: usize = 6;
 /// - domain string `b"Alea/Entropy/v1\0"` = 16 bytes
 /// - header fields: `architecture_identifier` (2) + `requested_entropy_bits`
 ///   (2) + `entropy_policy_version` (2) + `source_presence_bitmap` (2,
-///   headroom beyond the 6 currently defined tags) + `source_record_count`
+///   headroom beyond the 7 currently defined tags) + `source_record_count`
 ///   (1) = 9 bytes
 /// - per-record fixed overhead (`source_tag` + `algo_id_length` +
 ///   `algo_id` + `source_length`) = `1 + 1 + MAX_ALGO_ID + 2` = 36 bytes;
-///   up to 4 machine-source records (`ApprovedEfiRng`, `X86Rdseed64`,
-///   `X86RdrandSupplementary`, `ApprovedUsbTrng` — SPEC_USB_TRNG.md §6.3) =
-///   144 bytes
+///   up to 5 machine-source records (`ApprovedEfiRng`, `X86Rdseed64`,
+///   `X86RdrandSupplementary`, `ApprovedUsbTrng` — SPEC_USB_TRNG.md §6.3 —
+///   and `Tpm2GetRandom` — SPEC_TPM_ENTROPY.md §6.3) = 180 bytes
 /// - machine-source payloads: up to 4 records × `MAX_MACHINE_SOURCE_BYTES`
 ///   (64, since audit finding L2 gave the RDSEED64 record its second
-///   256-bit block) = 256 bytes
+///   256-bit block) + 1 × `MAX_TPM2_SOURCE_BYTES` (32) = 288 bytes
 /// - physical-source records: 2 records (dice + coin) × 36 bytes overhead
 ///   = 72 bytes, sharing at most `MAX_PHYSICAL_EVENTS` (512) total payload
 ///   bytes between them
 ///
-/// Raw minimum = 16 + 9 + 144 + 256 + 72 + 512 = 1009 bytes (rose from 881
-/// when `MAX_MACHINE_SOURCE_BYTES` doubled 32 → 64 for finding L2). Rounded
-/// up to 1024 (a power of two) for alignment headroom and to absorb small
-/// protocol-metadata growth without a contract change; 1024 still covers
-/// the 1009-byte minimum with no value change.
-pub const TRANSCRIPT_CAPACITY: usize = 1024;
+/// (`Tpm12GetRandom` — SPEC_TPM12_ENTROPY.md §1 — adds one more 36-byte
+/// overhead + `MAX_TPM2_SOURCE_BYTES` (32, the cap both TPM families
+/// share) payload record on top of the seven-record derivation below:
+/// raw minimum 1145, still comfortably under 2048.)
+///
+/// Raw minimum = 16 + 9 + 180 + 288 + 72 + 512 = 1077 bytes (rose from 881
+/// when `MAX_MACHINE_SOURCE_BYTES` doubled 32 → 64 for finding L2, then
+/// from 1009 when SPEC_TPM_ENTROPY.md §6.3 added the seventh record).
+/// Rounded up to 2048 (a power of two) for alignment headroom and to absorb
+/// small protocol-metadata growth without a contract change. Growing this
+/// buffer changes NO wire bytes: serialized transcripts are length-prefixed
+/// per record and every existing (≤ 1009-byte) transcript decodes
+/// unchanged; only `decode`'s `Oversized` ceiling widens with it.
+pub const TRANSCRIPT_CAPACITY: usize = 2048;
 
 #[cfg(test)]
 extern crate std;

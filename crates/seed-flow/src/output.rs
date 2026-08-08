@@ -733,7 +733,8 @@ mod fb_text_output_tests {
                 combined: Ok(()),
                 dice_only: Ok(()),
                 machine_only: Ok(()),
-            };
+            extras: Default::default(),
+        };
             crate::entropy_avail::render_entropy_mode_screen(&mut r, &avail);
             assert_fits("entropy_mode_screen", r.worst().0, r.worst().1);
         }
@@ -989,6 +990,7 @@ mod screens_fit_audit {
     fn recap() -> crate::diagnostics::DiagRecap {
         crate::diagnostics::DiagRecap {
             architecture_line: "x86-64",
+            tpm_status: "detected",
             con_out_paths: 3,
             con_in_paths: 2,
             secure_boot: crate::diagnostics::SecureBootStatus::Enabled,
@@ -1006,6 +1008,7 @@ mod screens_fit_audit {
             combined: Ok(()),
             dice_only: Ok(()),
             machine_only: Ok(()),
+            extras: Default::default(),
         }
     }
 
@@ -1152,6 +1155,28 @@ mod screens_fit_audit {
                     });
                 }
             }
+        }
+
+        // -- Stage 6 BACKUP (2026-08-09 shell restyle) ----------------
+        {
+            // Non-secret fixed indexes (0..24) — a layout audit, not a
+            // ceremony; the real screen draws arena indexes the same way.
+            let indexes: [u16; 24] = core::array::from_fn(|i| i as u16);
+            audit(&mut fb, "backup_display_24", |fb| {
+                crate::flow_secret::display::render_mnemonic_display(fb, &indexes, 24, BUILD);
+            });
+            audit(&mut fb, "backup_display_12", |fb| {
+                crate::flow_secret::display::render_mnemonic_display(fb, &indexes, 12, BUILD);
+            });
+            audit(&mut fb, "backup_destroy_confirm", |fb| {
+                crate::flow_secret::display::render_destroy_confirm(fb, BUILD);
+            });
+            audit(&mut fb, "backup_reentry_prompt", |fb| {
+                crate::flow_secret::reentry::render_word_prompt(fb, 6, 24, 2, BUILD);
+            });
+            audit(&mut fb, "backup_reentry_mismatch", |fb| {
+                crate::flow_secret::reentry::render_mismatch_screen(fb, BUILD);
+            });
         }
 
         // -- Stage 5 GENERATE -----------------------------------------

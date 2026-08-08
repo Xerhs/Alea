@@ -90,6 +90,8 @@ impl PlatformInfoGate for DesktopGates {
             // Secure Boot is a UEFI-only concept; honestly `Unknown`
             // rather than fabricating Enabled/Disabled.
             secure_boot: SecureBootStatus::Unknown,
+            // No TPM path exists in the desktop rehearsal (SPEC §4.3).
+            tpm_status: "n/a",
             // No entropy policy is ever loaded on desktop (no machine
             // source is ever offered -- see the module doc comment).
             entropy_policy_version: None,
@@ -127,6 +129,7 @@ pub struct NeverCalledMachineGate;
 impl MachineSourceGate for NeverCalledMachineGate {
     fn acquire(
         &mut self,
+        _extras: seed_flow::flow_secret::machine::MachineExtras,
         _into: &mut AcquiredSources,
         _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -208,7 +211,7 @@ mod tests {
         let mut gate = NeverCalledMachineGate;
         let mut into = AcquiredSources::new();
         let mut obs = seed_platform_x86::rng::progress::NullObserver;
-        let _ = gate.acquire(&mut into, &mut obs);
+        let _ = gate.acquire(seed_flow::flow_secret::machine::MachineExtras::default(), &mut into, &mut obs);
     }
 
     #[test]

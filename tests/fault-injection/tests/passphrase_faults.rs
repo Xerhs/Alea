@@ -30,6 +30,7 @@ struct UnusedMachineGate;
 impl MachineSourceGate for UnusedMachineGate {
     fn acquire(
         &mut self,
+        _extras: seed_flow::flow_secret::machine::MachineExtras,
         _into: &mut AcquiredSources,
         _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -115,6 +116,7 @@ fn run_ceremony(case: &seed_fault_injection::FrozenCase, secret_events: Vec<Inpu
         machine_gate: &mut mgate,
         shutdown: &mut shutdown,
         fault_hook: &mut hook,
+        extras: seed_flow::flow_secret::machine::MachineExtras::default(),
         instrument: seed_flow::flow_secret::physical::Instrument::Both,
         passphrase_policy: passphrase::PassphraseKeyboardPolicy::HostKeyboardTrusted,
         build_id: "fault-injection-test",

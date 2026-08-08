@@ -182,6 +182,13 @@ pub struct FlowResult {
     /// reached [`PreSecretOutcome::HandoffToSecretPhase`] via a physical-
     /// bearing mode.
     pub instrument: Instrument,
+    /// SPEC_TPM_ENTROPY.md §11a (§22.5b): the machine-extras opt-ins
+    /// committed on the same Stage-3 Setup screen, threaded to the secret
+    /// phase's `MachineSourceGate::acquire` exactly like `instrument`
+    /// above. All-OFF unless the run reached
+    /// [`PreSecretOutcome::HandoffToSecretPhase`] with an explicit
+    /// toggle.
+    pub extras: crate::flow_secret::machine::MachineExtras,
     /// 2026-08-07 ceremony redesign: the condensed SPEC §22.3 diagnostics
     /// the merged Stage-3 Setup screen shows inline. Carried out of this
     /// function so the SECRET-phase driver can re-render that same one
@@ -206,9 +213,16 @@ fn finish(machine: StateMachine, state: AppState, recap: DiagRecap) -> FlowResul
         }
         other => PreSecretOutcome::Unexpected(other),
     };
-    // The instrument is set by the caller (`run_pre_secret_flow`'s
-    // Stage-3 Setup arm) on the handoff path; default `Both` everywhere else.
-    FlowResult { machine, outcome, instrument: Instrument::default(), recap }
+    // The instrument and extras are set by the caller
+    // (`run_pre_secret_flow`'s Stage-3 Setup arm) on the handoff path;
+    // default `Both` / all-OFF everywhere else.
+    FlowResult {
+        machine,
+        outcome,
+        instrument: Instrument::default(),
+        extras: crate::flow_secret::machine::MachineExtras::default(),
+        recap,
+    }
 }
 
 /// Drive one `event` through `sm` (watchdog re-assert included via
@@ -274,6 +288,7 @@ where
             machine: StateMachine::new(),
             outcome: PreSecretOutcome::ExitedToFirmware,
             instrument: Instrument::default(),
+            extras: crate::flow_secret::machine::MachineExtras::default(),
             recap: DiagRecap::unknown(),
         };
     }
@@ -498,10 +513,16 @@ where
                     let avail = compute_mode_availability(gates.machine_availability);
                     screens::setup::render(out.framebuffer(), &setup, &avail, &recap, build);
                     match setup.handle_key(keys_src.read_menu_key(), &avail) {
-                        Some(screens::setup::SetupOutcome::Committed { words24, mode, instrument }) => {
+                        Some(screens::setup::SetupOutcome::Committed {
+                            words24,
+                            mode,
+                            instrument,
+                            extras,
+                        }) => {
                             let wc = if words24 { WordCount::TwentyFour } else { WordCount::Twelve };
                             // The ONE commit of the merged setup screen:
-                            // word count + mode + instrument together.
+                            // word count + mode + instrument + §22.5b
+                            // extras together.
                             let next = step_recoverable(
                                 &mut sm,
                                 watchdog,
@@ -511,6 +532,7 @@ where
                             );
                             let mut result = finish(sm, next, recap);
                             result.instrument = instrument;
+                            result.extras = extras;
                             return result;
                         }
                         Some(screens::setup::SetupOutcome::Back) => {
@@ -865,6 +887,7 @@ mod tests {
                 secure_boot: SecureBootStatus::Enabled,
                 entropy_policy_version: Some(1),
                 production_markers_verified: true,
+                tpm_status: "detected",
             }
         }
     }

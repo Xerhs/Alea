@@ -248,6 +248,156 @@ impl EfiRngPolicy {
     }
 }
 
+/// Maximum number of `allowed_manufacturers` entries under `[tpm2]`
+/// (SPEC_TPM_ENTROPY.md §8.1: `max_manufacturers = 8`).
+pub const MAX_TPM_MANUFACTURERS: usize = 8;
+
+/// `[tpm2]` section (SPEC_TPM_ENTROPY.md §8.1).
+///
+/// Ships `approved = false` with an empty manufacturer allow-list —
+/// review scaffolding exactly like `[efi_rng]`'s `allowed_algorithms`.
+/// NOTE (SPEC_TPM_ENTROPY.md §4.2): `TPM_PT_MANUFACTURER` is reported by
+/// the TPM itself and is spoofable by a malicious platform; the
+/// manufacturer list is review bookkeeping, never a security boundary.
+/// There is deliberately no `counts_toward_floor` key and no sole-source
+/// escape (§8.2, §10): the parser rejects `sole_source_allowed = true`
+/// outright.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tpm2Policy {
+    /// Whether `TPM2_GetRandom` may be used at all.
+    pub approved: bool,
+    /// MUST be `false` in this version (SPEC_TPM_ENTROPY.md §8.2) — the
+    /// parser rejects the file otherwise, the same absolute posture as
+    /// `[rdrand] supplementary_only`.
+    pub sole_source_allowed: bool,
+    /// Bytes requested per `TPM2_GetRandom` call. MUST be `32`
+    /// (SPEC_TPM_ENTROPY.md §5/§8.2: the one size every conformant
+    /// TPM 2.0 can satisfy in full, so a short return is a hard failure,
+    /// never a negotiation).
+    pub max_bytes_per_call: u8,
+    /// Bounded resubmissions on `TPM_RC_RETRY` per command
+    /// (SPEC_TPM_ENTROPY.md §7.3). Retry exhaustion is a hard fail of the
+    /// TPM source, never a silent substitution.
+    pub retry_limit: u8,
+    /// Reviewed maximum manufacturer-list length (SPEC_TPM_ENTROPY.md
+    /// §8.1), recorded as policy data like `[efi_rng] max_algorithms`.
+    pub max_manufacturers: u8,
+    /// Explicitly reviewed `TPM_PT_MANUFACTURER` strings (e.g. `"IFX"`).
+    /// Empty at ship (scaffold): per SPEC_TPM_ENTROPY.md §7.1 the
+    /// manufacturer gate only engages when the reviewed list is
+    /// non-empty — the §8.3 approval path requires appending the
+    /// exercised part's ID before `approved` ever flips, so
+    /// approved-with-empty-list is not a shippable state.
+    allowed_manufacturers: [AlgoId; MAX_TPM_MANUFACTURERS],
+    /// Number of valid entries in `allowed_manufacturers`.
+    allowed_manufacturers_len: u8,
+}
+
+impl Tpm2Policy {
+    pub(super) fn empty() -> Self {
+        Self {
+            approved: false,
+            sole_source_allowed: false,
+            max_bytes_per_call: 0,
+            retry_limit: 0,
+            max_manufacturers: 0,
+            allowed_manufacturers: [AlgoId::empty(); MAX_TPM_MANUFACTURERS],
+            allowed_manufacturers_len: 0,
+        }
+    }
+
+    pub(super) fn push_manufacturer(&mut self, id: AlgoId) -> Result<(), ()> {
+        let i = self.allowed_manufacturers_len as usize;
+        if i >= MAX_TPM_MANUFACTURERS {
+            return Err(());
+        }
+        self.allowed_manufacturers[i] = id;
+        self.allowed_manufacturers_len += 1;
+        Ok(())
+    }
+
+    /// The reviewed manufacturer identifiers as a slice.
+    pub fn allowed_manufacturers(&self) -> &[AlgoId] {
+        &self.allowed_manufacturers[..self.allowed_manufacturers_len as usize]
+    }
+
+    /// SPEC_TPM_ENTROPY.md §7.1 point 4: with a non-empty reviewed list, a
+    /// reported manufacturer not on it is refused; an empty list imposes
+    /// no manufacturer gate (scaffold state — see the field's doc comment
+    /// for why approved-with-empty-list is not shippable). Spoofability
+    /// caveat in this type's doc comment applies.
+    pub fn is_manufacturer_allowed(&self, id: &str) -> bool {
+        self.allowed_manufacturers_len == 0
+            || self.allowed_manufacturers().iter().any(|a| a.as_str() == id)
+    }
+}
+
+/// `[tpm12]` section (SPEC_TPM12_ENTROPY.md §2). Mirrors [`Tpm2Policy`]
+/// field-for-field plus `max_read_rounds`: TPM 1.2 parts may
+/// legitimately return fewer bytes than requested, so the driver
+/// accumulates to 32 across bounded `TPM_GetRandom` rounds. Approval is
+/// a SEPARATE review decision from `[tpm2]` (2005-era silicon, TPM 1.2
+/// RNG design — SPEC_TPM12_ENTROPY.md header), which is why this is its
+/// own section rather than a flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tpm12Policy {
+    /// Whether TPM 1.2 `TPM_GetRandom` may be used at all.
+    pub approved: bool,
+    /// MUST be `false` (SPEC_TPM12_ENTROPY.md §2 via SPEC_TPM_ENTROPY.md
+    /// §8.2, parser-enforced).
+    pub sole_source_allowed: bool,
+    /// MUST be `32` (parser-enforced, like `[tpm2]`).
+    pub max_bytes_per_call: u8,
+    /// Bounded `TPM_RETRY` resubmissions per round.
+    pub retry_limit: u8,
+    /// SPEC_TPM12_ENTROPY.md §2/§4: bound on the accumulate-to-32
+    /// `TPM_GetRandom` rounds per block. Parser-enforced `1..=32`.
+    pub max_read_rounds: u8,
+    /// Reviewed maximum manufacturer-list length.
+    pub max_manufacturers: u8,
+    /// Reviewed `TPM_CAP_PROP_MANUFACTURER` strings; empty scaffold at
+    /// ship, same semantics and spoofability caveat as [`Tpm2Policy`].
+    allowed_manufacturers: [AlgoId; MAX_TPM_MANUFACTURERS],
+    /// Number of valid entries in `allowed_manufacturers`.
+    allowed_manufacturers_len: u8,
+}
+
+impl Tpm12Policy {
+    pub(super) fn empty() -> Self {
+        Self {
+            approved: false,
+            sole_source_allowed: false,
+            max_bytes_per_call: 0,
+            retry_limit: 0,
+            max_read_rounds: 0,
+            max_manufacturers: 0,
+            allowed_manufacturers: [AlgoId::empty(); MAX_TPM_MANUFACTURERS],
+            allowed_manufacturers_len: 0,
+        }
+    }
+
+    pub(super) fn push_manufacturer(&mut self, id: AlgoId) -> Result<(), ()> {
+        let i = self.allowed_manufacturers_len as usize;
+        if i >= MAX_TPM_MANUFACTURERS {
+            return Err(());
+        }
+        self.allowed_manufacturers[i] = id;
+        self.allowed_manufacturers_len += 1;
+        Ok(())
+    }
+
+    /// The reviewed manufacturer identifiers as a slice.
+    pub fn allowed_manufacturers(&self) -> &[AlgoId] {
+        &self.allowed_manufacturers[..self.allowed_manufacturers_len as usize]
+    }
+
+    /// Same semantics as [`Tpm2Policy::is_manufacturer_allowed`].
+    pub fn is_manufacturer_allowed(&self, id: &str) -> bool {
+        self.allowed_manufacturers_len == 0
+            || self.allowed_manufacturers().iter().any(|a| a.as_str() == id)
+    }
+}
+
 /// `[rdseed]` section (SPEC §15.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RdseedPolicy {
@@ -562,6 +712,10 @@ pub struct Policy {
     pub rdrand: RdrandPolicy,
     /// `[usb_trng]` section (SPEC_USB_TRNG §8.1).
     pub usb_trng: UsbTrngPolicy,
+    /// `[tpm2]` section (SPEC_TPM_ENTROPY.md §8.1).
+    pub tpm2: Tpm2Policy,
+    /// `[tpm12]` section (SPEC_TPM12_ENTROPY.md §2).
+    pub tpm12: Tpm12Policy,
     denylist: [DenylistEntry; MAX_DENYLIST_ENTRIES],
     denylist_len: u8,
 }
@@ -574,6 +728,8 @@ impl Policy {
             rdseed: RdseedPolicy::empty(),
             rdrand: RdrandPolicy::empty(),
             usb_trng: UsbTrngPolicy::empty(),
+            tpm2: Tpm2Policy::empty(),
+            tpm12: Tpm12Policy::empty(),
             denylist: [DenylistEntry {
                 range: CpuRange {
                     vendor: Vendor::empty(),

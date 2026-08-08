@@ -339,6 +339,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 2
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
 
     /// Same as [`TEST_POLICY_TOML`] but with every `GenuineIntel` family-6
@@ -393,6 +410,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 2
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
 
     fn allow_all_policy() -> Policy {

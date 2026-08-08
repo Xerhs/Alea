@@ -24,35 +24,47 @@ fn src(present: bool, tag: SourceTag) -> Option<AcquiredSource> {
 }
 
 /// SPEC §15.3/§18.2 fault matrix: every present/absent combination of the
-/// three machine sources, confirming the "no primary succeeded" rule holds
-/// in every case (RDRAND can never stand in alone).
+/// four machine sources (SPEC_TPM_ENTROPY.md §10 added TPM as a fourth,
+/// primary-class source), confirming the "no primary succeeded" rule holds
+/// in every case (RDRAND can never stand in alone — not even alongside a
+/// failed TPM).
 #[test]
 fn assemble_acquired_sources_every_presence_combination() {
     let mut checked = 0usize;
     for efi in [false, true] {
         for rdseed in [false, true] {
             for rdrand in [false, true] {
-                let mut into = AcquiredSources::new();
-                let result = assemble_acquired_sources(
-                    src(efi, SourceTag::ApprovedEfiRng),
-                    src(rdseed, SourceTag::X86Rdseed64),
-                    src(rdrand, SourceTag::X86RdrandSupplementary),
-                    &mut into,
-                );
-                let primary = efi || rdseed;
-                if primary {
-                    assert!(result.is_ok(), "efi={efi} rdseed={rdseed} rdrand={rdrand}: a primary source succeeded, must be Ok");
-                    let expected_len = usize::from(efi) + usize::from(rdseed) + usize::from(rdrand);
-                    assert_eq!(into.len(), expected_len);
-                } else {
-                    assert_eq!(
-                        result,
-                        Err(MachineAcquisitionError::NoSourceAvailable),
-                        "efi={efi} rdseed={rdseed} rdrand={rdrand}: no primary source, must be rejected regardless of rdrand"
-                    );
-                    assert!(into.is_empty(), "efi={efi} rdseed={rdseed} rdrand={rdrand}: rejected acquisition must leave nothing pushed");
+                for tpm in [false, true] {
+                    for tpm12 in [false, true] {
+                        let mut into = AcquiredSources::new();
+                        let result = assemble_acquired_sources(
+                            src(efi, SourceTag::ApprovedEfiRng),
+                            src(rdseed, SourceTag::X86Rdseed64),
+                            src(rdrand, SourceTag::X86RdrandSupplementary),
+                            src(tpm, SourceTag::Tpm2GetRandom),
+                            src(tpm12, SourceTag::Tpm12GetRandom),
+                            &mut into,
+                        );
+                        let primary = efi || rdseed || tpm || tpm12;
+                        if primary {
+                            assert!(result.is_ok(), "efi={efi} rdseed={rdseed} rdrand={rdrand} tpm={tpm} tpm12={tpm12}: a primary source succeeded, must be Ok");
+                            let expected_len = usize::from(efi)
+                                + usize::from(rdseed)
+                                + usize::from(rdrand)
+                                + usize::from(tpm)
+                                + usize::from(tpm12);
+                            assert_eq!(into.len(), expected_len);
+                        } else {
+                            assert_eq!(
+                                result,
+                                Err(MachineAcquisitionError::NoSourceAvailable),
+                                "efi={efi} rdseed={rdseed} rdrand={rdrand} tpm={tpm} tpm12={tpm12}: no primary source, must be rejected regardless of rdrand"
+                            );
+                            assert!(into.is_empty(), "efi={efi} rdseed={rdseed} rdrand={rdrand} tpm={tpm} tpm12={tpm12}: rejected acquisition must leave nothing pushed");
+                        }
+                        checked += 1;
+                    }
                 }
-                checked += 1;
             }
         }
     }
@@ -63,6 +75,7 @@ struct FailingGate;
 impl MachineSourceGate for FailingGate {
     fn acquire(
         &mut self,
+        _extras: seed_flow::flow_secret::machine::MachineExtras,
         _into: &mut AcquiredSources,
         _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -74,6 +87,7 @@ struct PanicGate;
 impl MachineSourceGate for PanicGate {
     fn acquire(
         &mut self,
+        _extras: seed_flow::flow_secret::machine::MachineExtras,
         _into: &mut AcquiredSources,
         _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -149,6 +163,7 @@ fn assert_machine_gate_failure_exits_to_firmware(mode: seed_fault_injection::Ent
         machine_gate: &mut mgate,
         shutdown: &mut shutdown,
         fault_hook: &mut hook,
+        extras: seed_flow::flow_secret::machine::MachineExtras::default(),
         instrument: seed_flow::flow_secret::physical::Instrument::Both,
         passphrase_policy:
             seed_flow::flow_secret::passphrase::PassphraseKeyboardPolicy::HostKeyboardTrusted,
@@ -223,6 +238,7 @@ fn machine_gate_panic_mid_acquisition_unwinds_before_any_secret_exists() {
         machine_gate: &mut mgate,
         shutdown: &mut shutdown,
         fault_hook: &mut hook,
+        extras: seed_flow::flow_secret::machine::MachineExtras::default(),
         instrument: seed_flow::flow_secret::physical::Instrument::Both,
         passphrase_policy:
             seed_flow::flow_secret::passphrase::PassphraseKeyboardPolicy::HostKeyboardTrusted,

@@ -26,6 +26,7 @@ pub fn run_secret_phase(
     stdin: &mut uefi::proto::console::text::Input,
     fb: &mut seed_gop_ui::gop::framebuffer::LinearFramebuffer,
     instrument: seed_flow::flow_secret::physical::Instrument,
+    extras: seed_flow::flow_secret::machine::MachineExtras,
     build_id: &'static str,
     recap: seed_flow::diagnostics::DiagRecap,
 ) -> seed_flow::flow_secret::SecretFlowOutcome {
@@ -35,6 +36,7 @@ pub fn run_secret_phase(
         fb,
         PRODUCTION_MARKER,
         instrument,
+        extras,
         build_id,
         recap,
     )

@@ -142,6 +142,49 @@ max_read_retries = 3
 # reason_pinned  = "raw avalanche; reinforcement only; not sole-source"
 
 # ---------------------------------------------------------------------------
+# TPM 2.0 GetRandom (SPEC_TPM_ENTROPY.md §8)
+#
+# Ships *unapproved*, exactly like [efi_rng] and [usb_trng]: the machinery
+# exists, the review has not happened. `allowed_manufacturers` is an empty
+# scaffold; the review process appends specific TPM_PT_MANUFACTURER strings
+# (e.g. "IFX", "NTC", "STM") once a physical device of that make has been
+# exercised on hardware (SPEC_TPM_ENTROPY §8.3). NOTE: the manufacturer ID
+# is reported by the TPM itself and is spoofable by a malicious platform —
+# this list is review scaffolding, never a security boundary
+# (SPEC_TPM_ENTROPY §4.2). There is deliberately NO counts_toward_floor key
+# and NO sole-source escape: a TPM never counts toward the SPEC §17.2
+# witnessed floor and never stands alone (SPEC_TPM_ENTROPY §8.2, §10) — the
+# parser rejects `sole_source_allowed = true` outright.
+# ---------------------------------------------------------------------------
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+# ---------------------------------------------------------------------------
+# TPM 1.2 GetRandom (SPEC_TPM12_ENTROPY.md §2)
+#
+# Ships *unapproved*. A SEPARATE review decision from [tpm2]: 2005-era
+# silicon whose specified RNG is the TPM 1.2 design, not SP 800-90A —
+# same claimed/zero-counted accounting, weaker assurance story, disclosed
+# in the EDU panel. `max_read_rounds` bounds the accumulate-to-32 read
+# loop (TPM 1.2 parts may legitimately return fewer bytes than requested).
+# Same sole-source prohibition and manufacturer-scaffold semantics as
+# [tpm2]; same absent counts_toward_floor key.
+# ---------------------------------------------------------------------------
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
+
+# ---------------------------------------------------------------------------
 # Known-bad platform denylist (SPEC §15)
 #
 # EMPTY BY DESIGN for version 1 — this is not an oversight. SPEC §15

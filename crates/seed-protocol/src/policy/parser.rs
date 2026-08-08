@@ -94,6 +94,30 @@
 //! init_command = <string>                       # <=16 bytes
 //! min_firmware = <string>                       # <=32 bytes; "" = unconstrained
 //! reason_pinned = <string>                      # <=64 bytes
+//!
+//! [tpm2]                                        # SPEC_TPM_ENTROPY.md §8.1
+//! approved = <bool>
+//! sole_source_allowed = <bool>                  # MUST be false
+//! max_bytes_per_call = <u8>                     # MUST be 32
+//! retry_limit = <u8>
+//! max_manufacturers = <u8>
+//! allowed_manufacturers = [<string>, ...]       # up to MAX_TPM_MANUFACTURERS;
+//!                                                # reviewed TPM_PT_MANUFACTURER
+//!                                                # ids, spoofable, never a
+//!                                                # security boundary (§4.2)
+//! # NOTE: like [usb_trng], there is deliberately no `counts_toward_floor`
+//! # key in this schema; it is rejected as UnknownKey (SPEC_TPM_ENTROPY §10).
+//!
+//! [tpm12]                                       # SPEC_TPM12_ENTROPY.md §2
+//! approved = <bool>
+//! sole_source_allowed = <bool>                  # MUST be false
+//! max_bytes_per_call = <u8>                     # MUST be 32
+//! retry_limit = <u8>
+//! max_read_rounds = <u8>                        # bounded [1, 32]; TPM 1.2
+//!                                                # short returns are legal, so
+//!                                                # the driver accumulates
+//! max_manufacturers = <u8>
+//! allowed_manufacturers = [<string>, ...]       # same semantics as [tpm2]
 //! ```
 
 use super::types::{
@@ -192,6 +216,26 @@ pub enum ParseErrorKind {
     /// `[rdseed] approved = true` with `instruction_width_bits != 64`
     /// (SPEC §15.2: only the 64-bit form).
     RdseedMustBe64Bit,
+    /// `[tpm2] sole_source_allowed = true` (SPEC_TPM_ENTROPY.md §8.2
+    /// forbids this absolutely in this version — fTPM
+    /// indistinguishability means "TPM alone" could silently mean "this
+    /// CPU package alone, twice"). Same no-override posture as
+    /// `RdrandSoleSourceNotAllowed`.
+    Tpm2SoleSourceNotAllowed,
+    /// `[tpm2] max_bytes_per_call != 32` (SPEC_TPM_ENTROPY.md §8.2: one
+    /// conformant block size, no negotiation surface). Checked
+    /// unconditionally — not gated on `approved` — matching the
+    /// unconditional-on-syntax RDSEED width and USB read-range guards.
+    Tpm2MaxBytesMustBe32,
+    /// `[tpm12] sole_source_allowed = true` (SPEC_TPM12_ENTROPY.md §2 via
+    /// SPEC_TPM_ENTROPY.md §8.2 — the prohibition is inherited verbatim).
+    Tpm12SoleSourceNotAllowed,
+    /// `[tpm12] max_bytes_per_call != 32` (SPEC_TPM12_ENTROPY.md §2).
+    Tpm12MaxBytesMustBe32,
+    /// `[tpm12] max_read_rounds` outside `1..=32`
+    /// (SPEC_TPM12_ENTROPY.md §2: the accumulate-to-32 loop must be
+    /// bounded, and a zero bound could never read a block at all).
+    Tpm12ReadRoundsOutOfRange,
     /// Trailing, non-whitespace content followed a complete value on the
     /// same line (e.g. `approved = true extra`).
     TrailingContent,
@@ -209,6 +253,8 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
     let mut seen_rdseed = false;
     let mut seen_rdrand = false;
     let mut seen_usb_trng = false;
+    let mut seen_tpm2 = false;
+    let mut seen_tpm12 = false;
 
     // Per-section duplicate-key tracking (top-level `policy_version` uses
     // `seen_version` above).
@@ -216,6 +262,8 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
     let mut rdseed_seen = RdseedSeen::default();
     let mut rdrand_seen = RdrandSeen::default();
     let mut usb_trng_seen = UsbTrngSeen::default();
+    let mut tpm2_seen = Tpm2Seen::default();
+    let mut tpm12_seen = Tpm12Seen::default();
 
     let mut cpu_rule: Option<CpuRuleBuilder> = None;
     let mut denylist_entry: Option<DenylistBuilder> = None;
@@ -287,6 +335,20 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
                     seen_usb_trng = true;
                     section = Section::UsbTrng;
                 }
+                "tpm2" => {
+                    if seen_tpm2 {
+                        return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateSection });
+                    }
+                    seen_tpm2 = true;
+                    section = Section::Tpm2;
+                }
+                "tpm12" => {
+                    if seen_tpm12 {
+                        return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateSection });
+                    }
+                    seen_tpm12 = true;
+                    section = Section::Tpm12;
+                }
                 _ => return Err(ParseError { line: line_no, kind: ParseErrorKind::UnknownSection }),
             }
         } else {
@@ -310,6 +372,8 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
                 Section::Rdseed => apply_rdseed(&mut policy, &mut rdseed_seen, key, val, line_no)?,
                 Section::Rdrand => apply_rdrand(&mut policy, &mut rdrand_seen, key, val, line_no)?,
                 Section::UsbTrng => apply_usb_trng(&mut policy, &mut usb_trng_seen, key, val, line_no)?,
+                Section::Tpm2 => apply_tpm2(&mut policy, &mut tpm2_seen, key, val, line_no)?,
+                Section::Tpm12 => apply_tpm12(&mut policy, &mut tpm12_seen, key, val, line_no)?,
                 Section::RdseedCpuRule => {
                     let b = cpu_rule.as_mut().expect("array-header always sets a builder");
                     apply_cpu_rule_field(b, key, val, line_no)?;
@@ -355,6 +419,26 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
     {
         return Err(ParseError { line: 0, kind: ParseErrorKind::MissingField });
     }
+    // `allowed_manufacturers` is deliberately not required, mirroring
+    // `[efi_rng]`'s optional `allowed_algorithms` (both are review-append
+    // scaffolds; absence means "none reviewed yet").
+    if !tpm2_seen.approved
+        || !tpm2_seen.sole_source_allowed
+        || !tpm2_seen.max_bytes_per_call
+        || !tpm2_seen.retry_limit
+        || !tpm2_seen.max_manufacturers
+    {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::MissingField });
+    }
+    if !tpm12_seen.approved
+        || !tpm12_seen.sole_source_allowed
+        || !tpm12_seen.max_bytes_per_call
+        || !tpm12_seen.retry_limit
+        || !tpm12_seen.max_read_rounds
+        || !tpm12_seen.max_manufacturers
+    {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::MissingField });
+    }
 
     // Cross-field policy validation (SPEC §15.2/§15.3).
     if policy.rdrand.sole_source_allowed {
@@ -376,6 +460,29 @@ pub fn parse(input: &str) -> Result<Policy, ParseError> {
     {
         return Err(ParseError { line: 0, kind: ParseErrorKind::UsbTrngMinReadBytesOutOfRange });
     }
+    // SPEC_TPM_ENTROPY.md §8.2 hard rules. `sole_source_allowed = true` is
+    // rejected absolutely (no approved-gating): the same posture as the
+    // RDRAND guards above, for the §4.2 fTPM-indistinguishability reason.
+    if policy.tpm2.sole_source_allowed {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::Tpm2SoleSourceNotAllowed });
+    }
+    // Unconditional-on-syntax like the RDSEED width and USB range guards
+    // above (strictly stricter than the §8.2 minimum, which only demands
+    // rejection while `approved = true`).
+    if policy.tpm2.max_bytes_per_call != 32 {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::Tpm2MaxBytesMustBe32 });
+    }
+    // SPEC_TPM12_ENTROPY.md §2 hard rules — inherited posture, plus the
+    // accumulate-round bound.
+    if policy.tpm12.sole_source_allowed {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::Tpm12SoleSourceNotAllowed });
+    }
+    if policy.tpm12.max_bytes_per_call != 32 {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::Tpm12MaxBytesMustBe32 });
+    }
+    if policy.tpm12.max_read_rounds < 1 || policy.tpm12.max_read_rounds > 32 {
+        return Err(ParseError { line: 0, kind: ParseErrorKind::Tpm12ReadRoundsOutOfRange });
+    }
 
     Ok(policy)
 }
@@ -387,6 +494,8 @@ enum Section {
     Rdseed,
     Rdrand,
     UsbTrng,
+    Tpm2,
+    Tpm12,
     RdseedCpuRule,
     Denylist,
     UsbTrngDevice,
@@ -424,6 +533,27 @@ struct UsbTrngSeen {
     min_read_bytes: bool,
     read_timeout_ms: bool,
     max_read_retries: bool,
+}
+
+#[derive(Default)]
+struct Tpm12Seen {
+    approved: bool,
+    sole_source_allowed: bool,
+    max_bytes_per_call: bool,
+    retry_limit: bool,
+    max_read_rounds: bool,
+    max_manufacturers: bool,
+    allowed_manufacturers: bool,
+}
+
+#[derive(Default)]
+struct Tpm2Seen {
+    approved: bool,
+    sole_source_allowed: bool,
+    max_bytes_per_call: bool,
+    retry_limit: bool,
+    max_manufacturers: bool,
+    allowed_manufacturers: bool,
 }
 
 #[derive(Default)]
@@ -692,6 +822,93 @@ fn apply_usb_trng(
     Ok(())
 }
 
+/// Applies one `key = val` assignment inside `[tpm2]`
+/// (SPEC_TPM_ENTROPY.md §8.1). Like `apply_usb_trng` above, any key not
+/// matched below — `counts_toward_floor` in particular — falls through to
+/// the `UnknownKey` arm: the floor-override escape hatch is not
+/// parseable, not merely unused (SPEC_TPM_ENTROPY.md §10).
+fn apply_tpm2(
+    policy: &mut Policy,
+    seen: &mut Tpm2Seen,
+    key: &str,
+    val: &str,
+    line_no: u32,
+) -> Result<(), ParseError> {
+    macro_rules! scalar {
+        ($field:ident, $seen_field:ident, $parser:ident) => {{
+            if seen.$seen_field {
+                return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateKey });
+            }
+            policy.tpm2.$field = $parser(val).map_err(|kind| ParseError { line: line_no, kind })?;
+            seen.$seen_field = true;
+        }};
+    }
+    match key {
+        "approved" => scalar!(approved, approved, parse_bool),
+        "sole_source_allowed" => scalar!(sole_source_allowed, sole_source_allowed, parse_bool),
+        "max_bytes_per_call" => scalar!(max_bytes_per_call, max_bytes_per_call, parse_u8),
+        "retry_limit" => scalar!(retry_limit, retry_limit, parse_u8),
+        "max_manufacturers" => scalar!(max_manufacturers, max_manufacturers, parse_u8),
+        "allowed_manufacturers" => {
+            if seen.allowed_manufacturers {
+                return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateKey });
+            }
+            for_each_array_string(val, |tok| {
+                let id = super::types::AlgoId::from_str(tok).ok_or(ParseErrorKind::StringTooLong)?;
+                policy.tpm2.push_manufacturer(id).map_err(|_| ParseErrorKind::TooManyAlgorithms)?;
+                Ok(())
+            })
+            .map_err(|kind| ParseError { line: line_no, kind })?;
+            seen.allowed_manufacturers = true;
+        }
+        _ => return Err(ParseError { line: line_no, kind: ParseErrorKind::UnknownKey }),
+    }
+    Ok(())
+}
+
+/// Applies one `key = val` assignment inside `[tpm12]`
+/// (SPEC_TPM12_ENTROPY.md §2). Same discipline as `apply_tpm2` above:
+/// unknown keys — `counts_toward_floor` included — die as `UnknownKey`.
+fn apply_tpm12(
+    policy: &mut Policy,
+    seen: &mut Tpm12Seen,
+    key: &str,
+    val: &str,
+    line_no: u32,
+) -> Result<(), ParseError> {
+    macro_rules! scalar {
+        ($field:ident, $seen_field:ident, $parser:ident) => {{
+            if seen.$seen_field {
+                return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateKey });
+            }
+            policy.tpm12.$field = $parser(val).map_err(|kind| ParseError { line: line_no, kind })?;
+            seen.$seen_field = true;
+        }};
+    }
+    match key {
+        "approved" => scalar!(approved, approved, parse_bool),
+        "sole_source_allowed" => scalar!(sole_source_allowed, sole_source_allowed, parse_bool),
+        "max_bytes_per_call" => scalar!(max_bytes_per_call, max_bytes_per_call, parse_u8),
+        "retry_limit" => scalar!(retry_limit, retry_limit, parse_u8),
+        "max_read_rounds" => scalar!(max_read_rounds, max_read_rounds, parse_u8),
+        "max_manufacturers" => scalar!(max_manufacturers, max_manufacturers, parse_u8),
+        "allowed_manufacturers" => {
+            if seen.allowed_manufacturers {
+                return Err(ParseError { line: line_no, kind: ParseErrorKind::DuplicateKey });
+            }
+            for_each_array_string(val, |tok| {
+                let id = super::types::AlgoId::from_str(tok).ok_or(ParseErrorKind::StringTooLong)?;
+                policy.tpm12.push_manufacturer(id).map_err(|_| ParseErrorKind::TooManyAlgorithms)?;
+                Ok(())
+            })
+            .map_err(|kind| ParseError { line: line_no, kind })?;
+            seen.allowed_manufacturers = true;
+        }
+        _ => return Err(ParseError { line: line_no, kind: ParseErrorKind::UnknownKey }),
+    }
+    Ok(())
+}
+
 fn apply_usb_trng_device_field(
     b: &mut UsbTrngDeviceBuilder,
     key: &str,
@@ -937,6 +1154,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 3
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
 
     #[test]
@@ -962,6 +1196,136 @@ max_read_retries = 3
         assert_eq!(p.usb_trng.read_timeout_ms, 2000);
         assert_eq!(p.usb_trng.max_read_retries, 3);
         assert_eq!(p.usb_trng.devices().len(), 0);
+        assert!(!p.tpm2.approved);
+        assert!(!p.tpm2.sole_source_allowed);
+        assert_eq!(p.tpm2.max_bytes_per_call, 32);
+        assert_eq!(p.tpm2.retry_limit, 3);
+        assert_eq!(p.tpm2.max_manufacturers, 8);
+        assert_eq!(p.tpm2.allowed_manufacturers().len(), 0);
+    }
+
+    // ---- [tpm2] (SPEC_TPM_ENTROPY.md §8.1/§8.2) ----
+
+    /// §8.2: `sole_source_allowed = true` is rejected absolutely — same
+    /// no-override posture as the RDRAND guard, and NOT gated on
+    /// `approved` (this fixture's `[tpm2]` is unapproved and still dies).
+    #[test]
+    fn tpm2_sole_source_true_is_rejected() {
+        let src = MINIMAL_VALID.replace(
+            "[tpm2]\napproved = false\nsole_source_allowed = false",
+            "[tpm2]\napproved = false\nsole_source_allowed = true",
+        );
+        assert_eq!(
+            parse(&src).unwrap_err().kind,
+            ParseErrorKind::Tpm2SoleSourceNotAllowed
+        );
+    }
+
+    /// §8.2: `max_bytes_per_call` must be exactly 32, unconditionally.
+    #[test]
+    fn tpm2_max_bytes_other_than_32_is_rejected() {
+        for bad in ["16", "48", "0"] {
+            let src =
+                MINIMAL_VALID.replace("max_bytes_per_call = 32", &format!("max_bytes_per_call = {bad}"));
+            assert_eq!(
+                parse(&src).unwrap_err().kind,
+                ParseErrorKind::Tpm2MaxBytesMustBe32,
+                "max_bytes_per_call = {bad} must be rejected"
+            );
+        }
+    }
+
+    /// §10: the floor-override escape hatch is not parseable inside
+    /// `[tpm2]`, same as `[usb_trng]`.
+    #[test]
+    fn tpm2_counts_toward_floor_key_is_unknown() {
+        let src = MINIMAL_VALID.replace(
+            "retry_limit = 3\nmax_manufacturers",
+            "retry_limit = 3\ncounts_toward_floor = true\nmax_manufacturers",
+        );
+        assert_eq!(parse(&src).unwrap_err().kind, ParseErrorKind::UnknownKey);
+    }
+
+    /// §8.1: reviewed manufacturer ids parse into the list and gate via
+    /// `is_manufacturer_allowed`; an empty list imposes no gate (§7.1).
+    #[test]
+    fn tpm2_manufacturer_list_parses_and_gates() {
+        let src = MINIMAL_VALID.replace(
+            r#"allowed_manufacturers = []"#,
+            r#"allowed_manufacturers = ["IFX", "NTC"]"#,
+        );
+        let p = parse(&src).expect("manufacturer list must parse");
+        assert_eq!(p.tpm2.allowed_manufacturers().len(), 2);
+        assert!(p.tpm2.is_manufacturer_allowed("IFX"));
+        assert!(p.tpm2.is_manufacturer_allowed("NTC"));
+        assert!(!p.tpm2.is_manufacturer_allowed("AMD"));
+
+        let empty = parse(MINIMAL_VALID).unwrap();
+        assert!(empty.tpm2.is_manufacturer_allowed("anything"));
+    }
+
+    // ---- [tpm12] (SPEC_TPM12_ENTROPY.md §2) ----
+
+    /// Inherited §8.2 posture: `[tpm12] sole_source_allowed = true` dies
+    /// absolutely.
+    #[test]
+    fn tpm12_sole_source_true_is_rejected() {
+        let src = MINIMAL_VALID.replace(
+            "[tpm12]\napproved = false\nsole_source_allowed = false",
+            "[tpm12]\napproved = false\nsole_source_allowed = true",
+        );
+        assert_eq!(
+            parse(&src).unwrap_err().kind,
+            ParseErrorKind::Tpm12SoleSourceNotAllowed
+        );
+    }
+
+    /// §2: `max_read_rounds` outside 1..=32 is rejected unconditionally.
+    #[test]
+    fn tpm12_read_rounds_out_of_range_is_rejected() {
+        for bad in ["0", "33"] {
+            let src =
+                MINIMAL_VALID.replace("max_read_rounds = 8", &format!("max_read_rounds = {bad}"));
+            assert_eq!(
+                parse(&src).unwrap_err().kind,
+                ParseErrorKind::Tpm12ReadRoundsOutOfRange,
+                "max_read_rounds = {bad} must be rejected"
+            );
+        }
+    }
+
+    /// §2: parsed values land, and the manufacturer machinery mirrors
+    /// `[tpm2]`'s (empty list = no gate).
+    #[test]
+    fn tpm12_section_parses_and_gates() {
+        let p = parse(MINIMAL_VALID).unwrap();
+        assert!(!p.tpm12.approved);
+        assert!(!p.tpm12.sole_source_allowed);
+        assert_eq!(p.tpm12.max_bytes_per_call, 32);
+        assert_eq!(p.tpm12.retry_limit, 3);
+        assert_eq!(p.tpm12.max_read_rounds, 8);
+        assert!(p.tpm12.is_manufacturer_allowed("anything"));
+
+        let src = MINIMAL_VALID.replace(
+            "max_read_rounds = 8\nmax_manufacturers = 8\nallowed_manufacturers = []",
+            "max_read_rounds = 8\nmax_manufacturers = 8\nallowed_manufacturers = [\"ATML\"]",
+        );
+        let p = parse(&src).unwrap();
+        assert!(p.tpm12.is_manufacturer_allowed("ATML"));
+        assert!(!p.tpm12.is_manufacturer_allowed("IFX"));
+    }
+
+    /// The `[tpm2]` section is required: a policy without it fails the
+    /// finalize completeness check, exactly like the other sections.
+    #[test]
+    fn tpm2_section_is_required() {
+        let cut = MINIMAL_VALID
+            .find("\n[tpm2]")
+            .expect("fixture contains [tpm2]");
+        assert_eq!(
+            parse(&MINIMAL_VALID[..cut]).unwrap_err().kind,
+            ParseErrorKind::MissingField
+        );
     }
 
     #[test]
@@ -1039,6 +1403,23 @@ model_max = 78
 stepping_min = 0
 stepping_max = 0
 reason = "known-bad microcode"
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
         let p = parse(src).expect("full-featured policy must parse");
         assert_eq!(p.version, 3);
@@ -1110,6 +1491,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 3
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
         let p = parse(src).unwrap();
         // Broad rule allows family 6; narrower later rule overrides for the
@@ -1417,6 +1815,23 @@ sole_source_allowed = false
 min_read_bytes = 32
 read_timeout_ms = 2000
 max_read_retries = 3
+
+[tpm2]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_manufacturers = 8
+allowed_manufacturers = []
+
+[tpm12]
+approved = false
+sole_source_allowed = false
+max_bytes_per_call = 32
+retry_limit = 3
+max_read_rounds = 8
+max_manufacturers = 8
+allowed_manufacturers = []
 "#;
         let p = parse(src).expect("optional min_microcode_revision must parse");
         assert_eq!(p.rdseed.cpu_rules()[0].min_microcode_revision, Some(42));

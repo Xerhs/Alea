@@ -82,9 +82,12 @@ pub mod coverage {
     pub const A_AFTER_TRANSITION_ILLEGAL_EVENTS: usize = 32 * 8;
 
     // -- "during entropy acquisition" ---------------------------------
-    /// `assemble_acquired_sources` over all 8 present/absent combinations
-    /// of {efi_rng, rdseed, rdrand}.
-    pub const B_ACQUISITION_ASSEMBLE_COMBINATIONS: usize = 8;
+    /// `assemble_acquired_sources` over all 32 present/absent combinations
+    /// of {efi_rng, rdseed, rdrand, tpm2, tpm12} (SPEC_TPM_ENTROPY.md §10
+    /// and SPEC_TPM12_ENTROPY.md §6 added the fourth and fifth
+    /// primary-class sources; the gate enforces TPM family exclusivity,
+    /// but this pure function is exercised over every combination).
+    pub const B_ACQUISITION_ASSEMBLE_COMBINATIONS: usize = 32;
     /// Full-ceremony machine-source-gate failure, one run per mode that
     /// can reach `MachineEntropyAcquisition`.
     pub const B_ACQUISITION_GATE_FAILURE_CEREMONY: usize = 2;

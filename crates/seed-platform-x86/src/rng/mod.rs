@@ -89,6 +89,19 @@ pub mod rdrand;
 /// **not** — see the module doc comment for the §7.4-BLOCKED boundary.
 pub mod usb_trng;
 
+/// TPM 2.0 `GetRandom` driver (SPEC_TPM_ENTROPY.md §5, §7, §9). Unlike
+/// `usb_trng`, its real transport ([`tpm2::uefi_backend`], a thin
+/// `EFI_TCG2_PROTOCOL.SubmitCommand` adapter) ships now — the wire
+/// marshalling itself is host-tested byte-for-byte behind
+/// [`tpm2::Tpm2Transport`].
+pub mod tpm2;
+
+/// TPM 1.2 `TPM_GetRandom` driver (SPEC_TPM12_ENTROPY.md §1, §4, §5).
+/// Sibling of [`tpm2`] with the accumulate-to-32 read loop (1.2 short
+/// returns are legitimate); real transport =
+/// `uefi::proto::tcg::v1::Tcg::pass_through_to_tpm`.
+pub mod tpm12;
+
 mod util;
 
 pub use health::HealthError;

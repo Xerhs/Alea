@@ -62,6 +62,27 @@ const FORBIDDEN_PATTERNS: &[&str] = &[
     "std::env",
 ];
 
+/// Reviewed exceptions (SPEC §28 review, 2026-08-09), each an exact
+/// `(file-path suffix, pattern, maximum occurrences)` triple — the same
+/// explicit, by-file allowlist discipline ci.sh's exclusive-open gate
+/// uses. A file/pattern pair not listed here, or listed but exceeding
+/// its occurrence cap, still fails the audit: growing an exception
+/// requires editing this table, i.e. a re-review.
+///
+/// - `firmware_wiring.rs` / `get_variable` x2: the §22.3 diagnostics
+///   recap's Secure Boot disclosure reads the `SecureBoot` and
+///   `SetupMode` UEFI global variables (`secure_boot_status()`).
+///   READ-ONLY and DISPLAY-ONLY: the value feeds one recap label and
+///   nothing else — no entropy source, mode gate, policy field, or any
+///   other behavior branches on it, which is exactly the property this
+///   audit exists to protect (SPEC §28 bans variables that *change
+///   entropy behavior*; a disclosure of platform state is the §22.3
+///   recap's job). `SetVariable`/`set_variable` remain absolutely
+///   banned — nothing here may ever write firmware state.
+const REVIEWED_EXCEPTIONS: &[(&str, &str, usize)] = &[
+    ("crates/seed-flow/src/firmware_wiring.rs", "get_variable", 2),
+];
+
 /// Production dependency-graph source roots (SPEC §9, §28 — every crate
 /// `seed-uefi-production` depends on, directly or transitively, plus
 /// itself). Paths are relative to the repository root.
@@ -133,6 +154,23 @@ fn production_graph_source_has_no_hidden_entropy_toggle_apis() {
         let dir = root.join(rel);
         assert!(dir.is_dir(), "expected production-graph source dir to exist: {}", dir.display());
         all_hits.extend(scan_dir(&dir));
+    }
+
+    // Apply [`REVIEWED_EXCEPTIONS`]: hits matching a listed (file,
+    // pattern) pair are excused only while the file's TOTAL occurrence
+    // count stays at or under the reviewed cap — one extra call site
+    // re-fails the whole file, forcing the table (and thus a review) to
+    // grow with it.
+    for (suffix, pattern, max) in REVIEWED_EXCEPTIONS {
+        let count = all_hits
+            .iter()
+            .filter(|h| h.file.to_string_lossy().replace('\\', "/").ends_with(suffix) && h.pattern == *pattern)
+            .count();
+        if count <= *max {
+            all_hits.retain(|h| {
+                !(h.file.to_string_lossy().replace('\\', "/").ends_with(suffix) && h.pattern == *pattern)
+            });
+        }
     }
 
     if !all_hits.is_empty() {

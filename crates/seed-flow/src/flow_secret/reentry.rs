@@ -21,7 +21,6 @@ use seed_core::bip39::{resolve_prefix_into, PrefixOutcome};
 use seed_core::contracts::Framebuffer;
 use seed_platform_x86::input::{read_hidden, InputEvent, KeySource};
 
-use crate::flow_secret::gop_screen::draw_lines;
 use crate::output::LineBuf;
 use core::fmt::Write as _;
 
@@ -44,8 +43,17 @@ fn word_header(position: usize, total: usize) -> LineBuf {
 /// [`seed_gop_ui::theme::CAPTION`] — de-emphasis, the same role this
 /// restyle's slot-index captions and header stage rail use elsewhere —
 /// while the entry line itself keeps the ordinary screen style.
-pub fn render_word_prompt(fb: &mut dyn Framebuffer, position: usize, total: usize, dots: usize) {
-    seed_gop_ui::font::scrub_fill(fb, 0);
+pub fn render_word_prompt(fb: &mut dyn Framebuffer, position: usize, total: usize, dots: usize, build: &'static str) {
+    seed_gop_ui::font::scrub_fill(fb, seed_gop_ui::theme::BG);
+    crate::chrome::draw_header(fb, &crate::chrome::Chrome { stage: 6, sub: None, build });
+    crate::chrome::draw_footer(
+        fb,
+        &[
+            crate::chrome::KeyHint { key: "A-Z", label: "Type 4 letters", enabled: true, danger: false },
+            crate::chrome::KeyHint { key: "Backspace", label: "Delete", enabled: true, danger: false },
+            crate::chrome::KeyHint { key: "Enter", label: "Accept", enabled: true, danger: false },
+        ],
+    );
     let header = word_header(position, total);
     let mut dot_line = LineBuf::new();
     let _ = write!(dot_line, "Type the first four letters, then Enter: ");
@@ -58,16 +66,19 @@ pub fn render_word_prompt(fb: &mut dyn Framebuffer, position: usize, total: usiz
 
     let margin = seed_gop_ui::layout::MARGIN_X;
     let pitch = seed_gop_ui::layout::LINE_PITCH;
+    // Design doc §4 Stage 6: the "Word N of M" progress renders at the
+    // top of the content area, directly under the chrome header band.
+    let top = crate::chrome::content_top() + pitch / 2;
     seed_gop_ui::font::draw_text(
         fb,
         margin,
-        margin,
+        top,
         header.as_str(),
         seed_gop_ui::theme::on_bg(seed_gop_ui::theme::CAPTION),
     );
     // Blank line, then the entry row — same two-line offset `draw_lines`
     // previously produced for `&[header, "", dot_line]`.
-    seed_gop_ui::font::draw_text(fb, margin, margin + pitch * 2, dot_line.as_str(), seed_gop_ui::layout::SCREEN_STYLE);
+    seed_gop_ui::font::draw_text(fb, margin, top + pitch * 2, dot_line.as_str(), seed_gop_ui::layout::SCREEN_STYLE);
 }
 
 /// Non-secret outcome of one [`read_and_check_one_word`] call (SPEC
@@ -103,11 +114,12 @@ pub fn read_and_check_one_word<K: KeySource>(
     position: usize,
     total: usize,
     expected_index: &u16,
+    build: &'static str,
 ) -> ReentryOutcome {
     loop {
-        render_word_prompt(fb, position, total, 0);
+        render_word_prompt(fb, position, total, 0, build);
         let mut buf = [0u8; 4];
-        let len = read_hidden(keys, &mut buf, 4, |n| render_word_prompt(fb, position, total, n));
+        let len = read_hidden(keys, &mut buf, 4, |n| render_word_prompt(fb, position, total, n, build));
 
         if len == 0 {
             // SPEC §12.3: empty-buffer Enter re-displays the prompt
@@ -162,9 +174,27 @@ pub const DESTROY_PROMPT: &str = "[3] Destroy phrase and shut down";
 /// "Word NN of MM" / star-count line can be longer than this screen's
 /// own lines, so drawing directly over it without clearing would leave
 /// residual glyph tails from the previous screen visible underneath.
-pub fn render_mismatch_screen(fb: &mut dyn Framebuffer) {
-    seed_gop_ui::font::scrub_fill(fb, 0);
-    draw_lines(fb, &[MISMATCH_HEADER, "", RETRY_PROMPT, REVEAL_PROMPT, DESTROY_PROMPT]);
+pub fn render_mismatch_screen(fb: &mut dyn Framebuffer, build: &'static str) {
+    seed_gop_ui::font::scrub_fill(fb, seed_gop_ui::theme::BG);
+    crate::chrome::draw_header(fb, &crate::chrome::Chrome { stage: 6, sub: None, build });
+    // Lines drawn manually from the content area's top (the shared
+    // `draw_lines` helper starts at the raw top margin, which the chrome
+    // header band now owns — the fit audit enforces this).
+    let margin = seed_gop_ui::layout::MARGIN_X;
+    let pitch = seed_gop_ui::layout::LINE_PITCH;
+    let mut y = crate::chrome::content_top() + pitch / 2;
+    for line in [MISMATCH_HEADER, "", RETRY_PROMPT, REVEAL_PROMPT, DESTROY_PROMPT] {
+        seed_gop_ui::font::draw_text(fb, margin, y, line, seed_gop_ui::layout::SCREEN_STYLE);
+        y += pitch;
+    }
+    crate::chrome::draw_footer(
+        fb,
+        &[
+            crate::chrome::KeyHint { key: "1", label: "Retry", enabled: true, danger: false },
+            crate::chrome::KeyHint { key: "2", label: "Reveal again", enabled: true, danger: false },
+            crate::chrome::KeyHint { key: "3", label: "Destroy", enabled: true, danger: true },
+        ],
+    );
 }
 
 /// The user's choice on the SPEC §23.2 mismatch screen.
@@ -255,7 +285,7 @@ mod tests {
         let mut events = chars("aban");
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0, "test-build");
         assert_eq!(outcome, ReentryOutcome::Matched);
     }
 
@@ -266,7 +296,7 @@ mod tests {
         let mut events = chars("act");
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0, "test-build");
         assert_eq!(outcome, ReentryOutcome::Mismatch);
     }
 
@@ -276,7 +306,7 @@ mod tests {
         let mut events = chars("zzzz");
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 5, 24, &100);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 5, 24, &100, "test-build");
         assert_eq!(outcome, ReentryOutcome::Mismatch);
     }
 
@@ -288,7 +318,7 @@ mod tests {
         events.push(InputEvent::Char('n'));
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0, "test-build");
         assert_eq!(outcome, ReentryOutcome::Matched);
     }
 
@@ -303,7 +333,7 @@ mod tests {
         events.extend(chars("aban"));
         events.push(InputEvent::Enter); // now submit the real word
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0, "test-build");
         assert_eq!(outcome, ReentryOutcome::Matched, "an accidental empty Enter must not count as a wrong entry");
     }
 
@@ -316,7 +346,7 @@ mod tests {
         events.extend(chars("act")); // resolves, but to the WRONG word for index 0
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &0, "test-build");
         assert_eq!(outcome, ReentryOutcome::Mismatch, "the real (wrong) entry after empty Enters must still be checked");
     }
 
@@ -335,7 +365,7 @@ mod tests {
         let mut events = chars("act"); // resolves to an index != 7
         events.push(InputEvent::Enter);
         let mut keys = ScriptedKeys::new(events);
-        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &backing[0]);
+        let outcome = read_and_check_one_word(&mut fb, &mut keys, 0, 12, &backing[0], "test-build");
         assert_eq!(outcome, ReentryOutcome::Mismatch);
     }
 
@@ -351,19 +381,19 @@ mod tests {
         let mut events_a = chars("aban");
         events_a.push(InputEvent::Enter);
         let mut keys_a = ScriptedKeys::new(events_a);
-        let _ = read_and_check_one_word(&mut fb_a, &mut keys_a, 0, 12, &0);
+        let _ = read_and_check_one_word(&mut fb_a, &mut keys_a, 0, 12, &0, "test-build");
 
         let mut fb_b = VecFb::new(640, 480);
         let mut events_b = chars("zzzz");
         events_b.push(InputEvent::Enter);
         let mut keys_b = ScriptedKeys::new(events_b);
-        let _ = read_and_check_one_word(&mut fb_b, &mut keys_b, 0, 12, &0);
+        let _ = read_and_check_one_word(&mut fb_b, &mut keys_b, 0, 12, &0, "test-build");
 
         // Both prompts, at the moment of the final render (4 stars
         // shown), must be pixel-identical -- proving the letters
         // themselves never reached the framebuffer.
-        render_word_prompt(&mut fb_a, 0, 12, 4);
-        render_word_prompt(&mut fb_b, 0, 12, 4);
+        render_word_prompt(&mut fb_a, 0, 12, 4, "test-build");
+        render_word_prompt(&mut fb_b, 0, 12, 4, "test-build");
         assert_eq!(fb_a.buf, fb_b.buf);
     }
 
@@ -392,14 +422,14 @@ mod tests {
         fb.put_row(600, 0, &far_right_row);
         assert!(fb.buf.iter().any(|&p| p == 0x00FF_FFFF), "sanity: residue is present before rendering");
 
-        render_mismatch_screen(&mut fb);
+        render_mismatch_screen(&mut fb, "test-build");
 
         // The stale far-right pixels must have been cleared by the
         // leading `scrub_fill`, not left behind under/around the new
         // screen's own (shorter) text.
         for x in 600..640 {
-            let idx = x as usize; // row 0
-            assert_eq!(fb.buf[idx], 0, "residual prior-screen pixel at x={x} was not cleared");
+            let idx = x as usize; // row 0 — now the chrome header band
+            assert_ne!(fb.buf[idx], 0x00FF_FFFF, "residual prior-screen pixel at x={x} was not cleared");
         }
     }
 

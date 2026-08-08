@@ -33,9 +33,9 @@ mod types;
 pub use parser::{parse, ParseError, ParseErrorKind, MAX_LINE_LEN};
 pub use types::{
     AlgoId, CpuRange, CpuRule, DenylistEntry, EfiRngPolicy, FixedStr, Policy, RdrandPolicy,
-    RdseedPolicy, Reason, UsbClass, UsbTrngDevice, UsbTrngPolicy, Vendor,
+    RdseedPolicy, Reason, Tpm12Policy, Tpm2Policy, UsbClass, UsbTrngDevice, UsbTrngPolicy, Vendor,
     KNOWN_USB_TRNG_PROFILES, MAX_ALGORITHMS, MAX_ALGO_ID_LEN, MAX_CPU_RULES,
     MAX_DENYLIST_ENTRIES, MAX_INIT_COMMAND_LEN, MAX_MIN_FIRMWARE_LEN, MAX_PROFILE_LEN,
-    MAX_REASON_LEN, MAX_USB_TRNG_DEVICES, MAX_USB_TRNG_READ_BYTES, MAX_VENDOR_LEN,
-    MIN_USB_TRNG_READ_BYTES,
+    MAX_REASON_LEN, MAX_TPM_MANUFACTURERS, MAX_USB_TRNG_DEVICES, MAX_USB_TRNG_READ_BYTES,
+    MAX_VENDOR_LEN, MIN_USB_TRNG_READ_BYTES,
 };

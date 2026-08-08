@@ -630,13 +630,140 @@ impl ProdPolicyGates {
     }
 }
 
+/// SPEC_TPM_ENTROPY.md §7.1 probe, staged so the SPEC §22.3 recap can say
+/// exactly WHERE detection stopped on this boot — the same
+/// show-the-real-reason discipline the console-topology saga taught.
+/// Returns a fixed label; the availability decision itself lives in
+/// [`ProdPolicyGates`]'s `MachineAvailabilityGate::tpm`, which treats
+/// only `"detected"` as present.
+fn tpm_probe(policy: &Option<Policy>) -> &'static str {
+    let Some(policy) = policy else {
+        return "no policy";
+    };
+    if !policy.tpm2.approved {
+        return "policy off";
+    }
+    let Ok(handle) = uefi::boot::get_handle_for_protocol::<uefi::proto::tcg::v2::Tcg>() else {
+        // No TCG2 handle: distinguish "this firmware serves a TPM 1.2
+        // part over the old TCG 1.2 protocol" (a REAL Dell finding,
+        // 2026-08-09: classic-BIOS-era Latitudes activate a TPM 1.2 in
+        // Setup, but SPEC_TPM_ENTROPY §3.2 scopes this feature to
+        // TPM 2.0 only, so no Setup toggle can ever light the row up
+        // there) from "no TPM plumbing at all".
+        // SPEC_TPM12_ENTROPY.md §3: the 1.2 family is now a real,
+        // separately-policied path. Stage its own probe.
+        return tpm12_probe(policy);
+    };
+    let params = uefi::boot::OpenProtocolParams {
+        handle,
+        agent: uefi::boot::image_handle(),
+        controller: None,
+    };
+    // SAFETY: same GetProtocol justification as `tpm2::uefi_backend::locate`.
+    let opened = unsafe {
+        uefi::boot::open_protocol::<uefi::proto::tcg::v2::Tcg>(
+            params,
+            uefi::boot::OpenProtocolAttributes::GetProtocol,
+        )
+    };
+    let Ok(mut tcg) = opened else {
+        return "open failed";
+    };
+    match tcg.get_capability() {
+        Err(_) => "cap failed",
+        Ok(cap) if !cap.tpm_present() => "absent",
+        Ok(_) => "detected",
+    }
+}
+
+/// SPEC_TPM12_ENTROPY.md §3 staged probe, reached only when no TCG2
+/// handle exists (the 2.0 family owns the TPM whenever TCG2 is present,
+/// §6). Distinguishes deactivated (present but refusing — fixable from
+/// the Setup page) from absent, and names the policy-off state.
+fn tpm12_probe(policy: &Policy) -> &'static str {
+    let Ok(handle) = uefi::boot::get_handle_for_protocol::<uefi::proto::tcg::v1::Tcg>() else {
+        return "no protocol";
+    };
+    let params = uefi::boot::OpenProtocolParams {
+        handle,
+        agent: uefi::boot::image_handle(),
+        controller: None,
+    };
+    // SAFETY: same GetProtocol justification as `tpm12::uefi_backend::locate`.
+    let opened = unsafe {
+        uefi::boot::open_protocol::<uefi::proto::tcg::v1::Tcg>(
+            params,
+            uefi::boot::OpenProtocolAttributes::GetProtocol,
+        )
+    };
+    let Ok(mut tcg) = opened else {
+        return "1.2 open failed";
+    };
+    match tcg.status_check() {
+        Err(_) => "1.2 status failed",
+        Ok(status) => {
+            let flags = status.protocol_capability;
+            if !flags.tpm_present() {
+                "absent"
+            } else if flags.tpm_deactivated() {
+                "1.2 deactivated"
+            } else if !policy.tpm12.approved {
+                "1.2 policy off"
+            } else {
+                "1.2 detected"
+            }
+        }
+    }
+}
+
+/// SPEC §22.3: the REAL Secure Boot status, from the UEFI `SecureBoot`
+/// global variable (previously hardcoded `Unknown` — the field's honest
+/// placeholder until this read existed; user finding 2026-08-09: both
+/// verification machines showed "Unknown" where the true state was
+/// "Disabled", since the unsigned beta image cannot even boot with
+/// Secure Boot enforcing).
+///
+/// Semantics (UEFI spec §32.4 / §8.2 globals, both 1-byte booleans under
+/// `EFI_GLOBAL_VARIABLE`):
+/// - `SecureBoot == 0` → Disabled.
+/// - `SecureBoot == 1` AND `SetupMode == 0` → Enabled (actually
+///   enforcing).
+/// - `SecureBoot == 1` with `SetupMode == 1` → Disabled: setup
+///   (key-enrollment) mode does not enforce signatures, and reporting
+///   "Enabled" there would overstate the protection (the §22.3 recap is
+///   a disclosure, never a reassurance).
+/// - Any read error, absent variable, or unexpected length/value →
+///   honestly `Unknown`, exactly as before.
+fn secure_boot_status() -> SecureBootStatus {
+    let mut sb = [0u8; 1];
+    let read = uefi::runtime::get_variable(
+        uefi::cstr16!("SecureBoot"),
+        &uefi::runtime::VariableVendor::GLOBAL_VARIABLE,
+        &mut sb,
+    );
+    match read {
+        Ok((data, _)) if data.len() == 1 && data[0] == 0 => SecureBootStatus::Disabled,
+        Ok((data, _)) if data.len() == 1 && data[0] == 1 => {
+            let mut sm = [0u8; 1];
+            let setup = uefi::runtime::get_variable(
+                uefi::cstr16!("SetupMode"),
+                &uefi::runtime::VariableVendor::GLOBAL_VARIABLE,
+                &mut sm,
+            );
+            match setup {
+                Ok((d, _)) if d.len() == 1 && d[0] == 1 => SecureBootStatus::Disabled,
+                _ => SecureBootStatus::Enabled,
+            }
+        }
+        _ => SecureBootStatus::Unknown,
+    }
+}
+
 impl PlatformInfoGate for ProdPolicyGates {
     fn info(&mut self) -> PlatformInfo {
         PlatformInfo {
-            // SPEC §22.3 explicitly lists "Unknown" as a valid displayed
-            // state; reading the real `SecureBoot` UEFI variable is a
-            // small, separate piece of work no WP currently owns.
-            secure_boot: SecureBootStatus::Unknown,
+            tpm_status: tpm_probe(&self.policy),
+            secure_boot: secure_boot_status(),
             entropy_policy_version: self.policy.map(|p| p.version),
             // `None` (every non-production edition) reports `false` — by
             // definition not the verified production build (SPEC §4.2).
@@ -688,6 +815,28 @@ impl MachineAvailabilityGate for ProdPolicyGates {
             sole_source_allowed: approved && policy.rdseed.sole_source_allowed,
         }
     }
+
+    /// SPEC_TPM_ENTROPY.md §7.1: policy approval AND TCG2
+    /// `TPMPresentFlag` detection, fail-closed at each step. Feeds the
+    /// §22.5b extras row only — `sole_source_allowed` is hard `false`
+    /// (§8.2, parser-enforced anyway), so `machine_only` availability
+    /// never changes because of a TPM.
+    fn tpm(&mut self) -> SourceAvailability {
+        // Single source of truth with the SPEC §22.3 recap's probe label:
+        // available exactly when a staged probe ran to the end for
+        // whichever family this machine has (SPEC_TPM12_ENTROPY.md §6 —
+        // one toggle, one row, family disclosed in the EDU panel and
+        // transcript).
+        let label = tpm_probe(&self.policy);
+        SourceAvailability {
+            approved: label == "detected" || label == "1.2 detected",
+            sole_source_allowed: false,
+        }
+    }
+
+    // The trait's `usb_trng` default (unavailable) is deliberately NOT
+    // overridden: with WP-U4 unbuilt there is no honest detection path
+    // (SPEC_USB_TRNG §7.2), so the §22.5b row must not render.
 
     /// SPEC §18.2's required machine-only disclosure. Real computation
     /// (not the trait's `None` default): reuses [`Self::efi_rng`]/
@@ -831,6 +980,7 @@ impl MachineSourceGate for ProdMachineSourceGate {
     /// call now enforces across all three mechanisms.
     fn acquire(
         &mut self,
+        extras: crate::flow_secret::machine::MachineExtras,
         into: &mut AcquiredSources,
         observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -915,10 +1065,52 @@ impl MachineSourceGate for ProdMachineSourceGate {
             None
         };
 
+        // TPM 2.0 GetRandom (SPEC_TPM_ENTROPY.md §7): sampled ONLY when
+        // both the compiled-in policy approves it AND the user opted in
+        // on the §22.5b extras row — an OFF toggle means no probe at all
+        // (§11a). Failure of an *optional* source never sets
+        // `primary_timed_out` and never fails the acquisition by itself:
+        // the mix the user was promised without the extra is still
+        // delivered; the extra simply is not in it (§7.3: dropped from
+        // the mix, ceremony continues).
+        let tpm_source = if policy.tpm2.approved && extras.tpm {
+            seed_platform_x86::rng::tpm2::uefi_backend::locate().ok().and_then(|mut tcg| {
+                let mut transport =
+                    seed_platform_x86::rng::tpm2::uefi_backend::RealTpm2::new(&mut tcg);
+                seed_platform_x86::rng::tpm2::sample(&mut transport, policy, &mut deadline)
+                    .ok()
+                    .and_then(|record| {
+                        AcquiredSource::new(record.tag(), record.algo_id(), record.bytes())
+                    })
+            })
+        } else {
+            None
+        };
+
+        // TPM 1.2 (SPEC_TPM12_ENTROPY.md §6): family-exclusive — sampled
+        // ONLY when the 2.0 path produced nothing (2.0 wins when both
+        // protocols exist) AND the user opted in AND [tpm12] approves.
+        // Same optional-source failure semantics as the 2.0 branch.
+        let tpm12_source = if tpm_source.is_none() && policy.tpm12.approved && extras.tpm {
+            seed_platform_x86::rng::tpm12::uefi_backend::locate().ok().and_then(|mut tcg| {
+                let mut transport =
+                    seed_platform_x86::rng::tpm12::uefi_backend::RealTpm12::new(&mut tcg);
+                seed_platform_x86::rng::tpm12::sample(&mut transport, policy, &mut deadline)
+                    .ok()
+                    .and_then(|record| {
+                        AcquiredSource::new(record.tag(), record.algo_id(), record.bytes())
+                    })
+            })
+        } else {
+            None
+        };
+
         crate::flow_secret::machine::assemble_acquired_sources(
             efi_rng_source,
             rdseed_source,
             rdrand_source,
+            tpm_source,
+            tpm12_source,
             into,
         )
         .map_err(|e| {
@@ -1108,6 +1300,7 @@ pub fn run_secret_phase(
     fb: &mut seed_gop_ui::gop::framebuffer::LinearFramebuffer,
     production_marker: Option<fn() -> bool>,
     instrument: crate::flow_secret::physical::Instrument,
+    extras: crate::flow_secret::machine::MachineExtras,
     build_id: &'static str,
     recap: crate::diagnostics::DiagRecap,
 ) -> SecretFlowOutcome {
@@ -1156,6 +1349,9 @@ pub fn run_secret_phase(
         // SPEC_DICE_COIN_VISUAL.md §22.5a: the pre-secret instrument
         // sub-selection, threaded from `FlowResult::instrument`.
         instrument,
+        // SPEC_TPM_ENTROPY.md §11a: the §22.5b extras opt-ins, threaded
+        // from `FlowResult::extras` the same way.
+        extras,
         // SPEC_PASSPHRASE §8.2: bootable UEFI (both the production and test
         // editions share this wiring) requires the fail-closed extended
         // printable-ASCII keyboard self-test before passphrase entry.

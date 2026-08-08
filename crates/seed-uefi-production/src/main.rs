@@ -282,6 +282,9 @@ fn run_pre_secret() {
             // SPEC_DICE_COIN_VISUAL.md §22.5a: presentation-only instrument
             // sub-selection, threaded into the secret phase.
             let instrument = result.instrument;
+            // SPEC_TPM_ENTROPY.md §11a: the §22.5b extras opt-ins, threaded
+            // into the secret phase alongside the instrument.
+            let extras = result.extras;
             // 2026-08-07 ceremony redesign: the SPEC §22.3 recap the Stage-3
             // Setup screen showed, so the secret phase can re-render that same
             // screen if the user backs into `AppState::SetupSelection`.
@@ -306,6 +309,7 @@ fn run_pre_secret() {
                 stdin,
                 &mut session.fb,
                 instrument,
+                extras,
                 release::BUILD_ID,
                 recap,
             ) {

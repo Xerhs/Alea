@@ -99,6 +99,46 @@ pub trait MachineAvailabilityGate {
     fn machine_only_disclosure(&mut self) -> Option<MachineOnlyDisclosure> {
         None
     }
+
+    /// TPM 2.0 `GetRandom` availability (SPEC_TPM_ENTROPY.md §7.1:
+    /// `[tpm2]` policy approval AND TCG2 `TPMPresentFlag` detection).
+    /// `sole_source_allowed` is always `false` for a valid policy
+    /// (SPEC_TPM_ENTROPY.md §8.2, parser-enforced), so this never
+    /// affects `machine_only` availability — it only feeds the §22.5b
+    /// extras row. Defaults to unavailable: implementers without a TPM
+    /// path (host tests, the desktop edition) need not override.
+    fn tpm(&mut self) -> SourceAvailability {
+        SourceAvailability::default()
+    }
+
+    /// USB TRNG availability (SPEC_USB_TRNG §8.1 approval AND an
+    /// allow-listed device present). Defaults to unavailable — and stays
+    /// unavailable on every real path today: the WP-U4 read/enumeration
+    /// primitive is still BLOCKED, so no wiring can honestly detect a
+    /// device. Exists so the §22.5b extras row lights up the day WP-U4
+    /// lands, with no further UI change.
+    fn usb_trng(&mut self) -> SourceAvailability {
+        SourceAvailability::default()
+    }
+}
+
+/// Which §22.5b optional ("extra") machine sources are offerable on this
+/// boot (SPEC_TPM_ENTROPY.md §11a: implemented AND policy-approved AND
+/// detected). A `false` here renders NO row — never a greyed promise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ExtrasAvailability {
+    /// "Add TPM entropy" is offerable.
+    pub tpm: bool,
+    /// "Add USB TRNG" is offerable (never `true` until WP-U4).
+    pub usb_trng: bool,
+}
+
+impl ExtrasAvailability {
+    /// No extra is offerable — the §22.5b row disappears entirely.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        !(self.tpm || self.usb_trng)
+    }
 }
 
 /// SPEC §22.5: "No approved machine entropy source is present or
@@ -122,6 +162,11 @@ pub struct ModeAvailability {
     pub dice_only: Result<(), &'static str>,
     /// SPEC §22.5 `[3]` / §18.2: approved machine source only.
     pub machine_only: Result<(), &'static str>,
+    /// §22.5b optional-source rows (SPEC_TPM_ENTROPY.md §11a).
+    /// Deliberately NOT folded into `combined`/`machine_only` above: an
+    /// extra can only ever ADD claimed material to an already-available
+    /// mode, never make a mode available (or unavailable) by itself.
+    pub extras: ExtrasAvailability,
 }
 
 /// Compute [`ModeAvailability`] from the two machine-source queries (SPEC
@@ -149,6 +194,10 @@ pub fn compute_mode_availability<G: MachineAvailabilityGate + ?Sized>(gate: &mut
             Ok(())
         } else {
             Err(NO_SOLE_SOURCE_REASON)
+        },
+        extras: ExtrasAvailability {
+            tpm: gate.tpm().approved,
+            usb_trng: gate.usb_trng().approved,
         },
     }
 }
@@ -434,6 +483,7 @@ mod tests {
             combined: Err(NO_MACHINE_SOURCE_REASON),
             dice_only: Ok(()),
             machine_only: Err(NO_SOLE_SOURCE_REASON),
+            extras: Default::default(),
         };
         let mut term = MockTerminal::new();
         render_entropy_mode_screen(&mut term, &avail);
@@ -451,6 +501,7 @@ mod tests {
             combined: Ok(()),
             dice_only: Ok(()),
             machine_only: Err(NO_SOLE_SOURCE_REASON),
+            extras: Default::default(),
         };
         let mut keys = ScriptedMenuKeys::new(std::vec![MenuKey::Char('3'), MenuKey::Char('1')]);
         let chosen = read_entropy_mode_choice(&mut keys, &avail);
@@ -461,14 +512,24 @@ mod tests {
 
     #[test]
     fn read_choice_returns_back_on_escape() {
-        let avail = ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Ok(()) };
+        let avail = ModeAvailability {
+            combined: Ok(()),
+            dice_only: Ok(()),
+            machine_only: Ok(()),
+            extras: Default::default(),
+        };
         let mut keys = ScriptedMenuKeys::new(std::vec![MenuKey::Escape]);
         assert_eq!(read_entropy_mode_choice(&mut keys, &avail), EntropyModeChoice::Back);
     }
 
     #[test]
     fn entropy_mode_screen_shows_the_back_prompt() {
-        let avail = ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Ok(()) };
+        let avail = ModeAvailability {
+            combined: Ok(()),
+            dice_only: Ok(()),
+            machine_only: Ok(()),
+            extras: Default::default(),
+        };
         let mut term = MockTerminal::new();
         render_entropy_mode_screen(&mut term, &avail);
         assert!(term.contains(crate::text::BACK_PROMPT));

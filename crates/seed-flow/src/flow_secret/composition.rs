@@ -93,6 +93,29 @@ cannot prove it is honest or that its data arrived unaltered.";
 /// SPEC_USB_TRNG.md §10.3), with the reinforcement-only note.
 pub const EDU_USBTRNG_CLAIM: &str = "CLAIMED -- health-checked, not proven; 0 counted bits (reinforcement only)";
 
+/// SPEC_TPM_ENTROPY.md §11, verbatim: TPM physical sentence. The "(or
+/// firmware pretending to be one)" clause is the normative fTPM
+/// disclosure (SPEC_TPM_ENTROPY.md §4.2) and MUST NOT be softened: Intel
+/// PTT / AMD fTPM run inside the CPU package, and pre-boot code cannot
+/// prove which kind answered.
+pub const EDU_TPM_PHYS: &str = "TPM: a separate security chip (or firmware pretending to be one) with its \
+own random-number generator. You cannot watch it work, and Alea cannot \
+prove which kind it is or that its output is unpredictable.";
+
+/// SPEC_TPM_ENTROPY.md §11, verbatim: TPM accounting line -- same
+/// `ClaimedUnproven` category and 0 counted bits as every machine source
+/// (`seed_protocol::accounting::category_of`, SPEC_TPM_ENTROPY.md §10).
+pub const EDU_TPM_CLAIM: &str = "CLAIMED -- health-checked, not proven; 0 counted bits";
+
+/// SPEC_TPM12_ENTROPY.md §7, verbatim: TPM 1.2 physical sentence — the
+/// age disclosure is normative and MUST NOT be softened.
+pub const EDU_TPM12_PHYS: &str = "TPM 1.2: an older-generation security chip with its own random-number \
+generator, designed around 2005. You cannot watch it work, and Alea \
+cannot prove its output is unpredictable.";
+
+/// SPEC_TPM12_ENTROPY.md §7, verbatim: TPM 1.2 accounting line.
+pub const EDU_TPM12_CLAIM: &str = "CLAIMED -- health-checked, not proven; 0 counted bits";
+
 /// SPEC_EDU_UI §4.6/§4.3: the honest statement shown when the counted
 /// section has nothing in it (`MachineOnly` mode has zero witnessed
 /// bits) -- the panel MUST say so plainly rather than showing an empty
@@ -122,28 +145,32 @@ const MAX_TAGS_PER_CLAIMED_PAGE: usize = 2;
 /// `AcquiredSources::iter().map(AcquiredSource::tag)`. No dynamic
 /// allocation, no secret byte -- tags only.
 ///
-/// Stored as four flags (one per possible machine tag) rather than an
-/// insertion-order list, so capacity is trivially bounded at exactly 4
+/// Stored as five flags (one per possible machine tag) rather than an
+/// insertion-order list, so capacity is trivially bounded at exactly 5
 /// and [`Self::iter`] always yields present tags in a fixed canonical
 /// (ascending-tag) order regardless of acquisition order --
 /// `SPEC_EDU_UI.md` §8 Open Question 4 recommends canonical order for
 /// testability. The fourth flag, `usb_trng` (`SourceTag::ApprovedUsbTrng`,
 /// `0x12`), is the WP-U5 hookup (`IMPLEMENTATION_MAP_USB_TRNG.md` §4/§11):
 /// it renders as one more CLAIMED row, in the same accounting position as
-/// RDSEED (SPEC_USB_TRNG.md §10.3), never counted.
+/// RDSEED (SPEC_USB_TRNG.md §10.3), never counted. The fifth, `tpm`
+/// (`SourceTag::Tpm2GetRandom`, `0x13`), is the SPEC_TPM_ENTROPY.md
+/// §10/§11 hookup under the identical rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MachineTagSet {
     efi_rng: bool,
     rdseed: bool,
     rdrand: bool,
     usb_trng: bool,
+    tpm: bool,
+    tpm12: bool,
 }
 
 impl MachineTagSet {
     /// An empty set.
     #[must_use]
     pub const fn new() -> Self {
-        Self { efi_rng: false, rdseed: false, rdrand: false, usb_trng: false }
+        Self { efi_rng: false, rdseed: false, rdrand: false, usb_trng: false, tpm: false, tpm12: false }
     }
 
     /// Marks `tag` present. Dice/coin tags are not machine tags and are
@@ -154,18 +181,25 @@ impl MachineTagSet {
             SourceTag::X86Rdseed64 => self.rdseed = true,
             SourceTag::X86RdrandSupplementary => self.rdrand = true,
             SourceTag::ApprovedUsbTrng => self.usb_trng = true,
+            SourceTag::Tpm2GetRandom => self.tpm = true,
+            SourceTag::Tpm12GetRandom => self.tpm12 = true,
             SourceTag::DiceRolls | SourceTag::CoinFlips => {}
         }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        !(self.efi_rng || self.rdseed || self.rdrand || self.usb_trng)
+        !(self.efi_rng || self.rdseed || self.rdrand || self.usb_trng || self.tpm || self.tpm12)
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.efi_rng as usize + self.rdseed as usize + self.rdrand as usize + self.usb_trng as usize
+        self.efi_rng as usize
+            + self.rdseed as usize
+            + self.rdrand as usize
+            + self.usb_trng as usize
+            + self.tpm as usize
+            + self.tpm12 as usize
     }
 
     #[must_use]
@@ -175,19 +209,24 @@ impl MachineTagSet {
             SourceTag::X86Rdseed64 => self.rdseed,
             SourceTag::X86RdrandSupplementary => self.rdrand,
             SourceTag::ApprovedUsbTrng => self.usb_trng,
+            SourceTag::Tpm2GetRandom => self.tpm,
+            SourceTag::Tpm12GetRandom => self.tpm12,
             SourceTag::DiceRolls | SourceTag::CoinFlips => false,
         }
     }
 
     /// Present machine tags, in fixed canonical (ascending-tag) order:
     /// `ApprovedEfiRng` (`0x01`), `X86Rdseed64` (`0x02`),
-    /// `X86RdrandSupplementary` (`0x03`), `ApprovedUsbTrng` (`0x12`).
+    /// `X86RdrandSupplementary` (`0x03`), `ApprovedUsbTrng` (`0x12`),
+    /// `Tpm2GetRandom` (`0x13`), `Tpm12GetRandom` (`0x14`).
     pub fn iter(&self) -> impl Iterator<Item = SourceTag> + '_ {
         [
             (self.efi_rng, SourceTag::ApprovedEfiRng),
             (self.rdseed, SourceTag::X86Rdseed64),
             (self.rdrand, SourceTag::X86RdrandSupplementary),
             (self.usb_trng, SourceTag::ApprovedUsbTrng),
+            (self.tpm, SourceTag::Tpm2GetRandom),
+            (self.tpm12, SourceTag::Tpm12GetRandom),
         ]
         .into_iter()
         .filter(|(present, _)| *present)
@@ -346,7 +385,11 @@ fn claimed_row_text(tag: SourceTag) -> (&'static str, &'static str, &'static str
         SourceTag::X86RdrandSupplementary => (EDU_RDRAND_PHYS, EDU_RDRAND_CLAIM, "RDRAND"),
         // SPEC_USB_TRNG.md §11/§10.3 CLAIMED row (WP-U5 hookup).
         SourceTag::ApprovedUsbTrng => (EDU_USBTRNG_PHYS, EDU_USBTRNG_CLAIM, "USB TRNG"),
-        // `MachineTagSet::iter` only ever yields the four machine tags
+        // SPEC_TPM_ENTROPY.md §11/§10 CLAIMED row.
+        SourceTag::Tpm2GetRandom => (EDU_TPM_PHYS, EDU_TPM_CLAIM, "TPM"),
+        // SPEC_TPM12_ENTROPY.md §7 CLAIMED row — family disclosed.
+        SourceTag::Tpm12GetRandom => (EDU_TPM12_PHYS, EDU_TPM12_CLAIM, "TPM 1.2"),
+        // `MachineTagSet::iter` only ever yields the six machine tags
         // above -- see its own doc comment.
         SourceTag::DiceRolls | SourceTag::CoinFlips => ("", "", ""),
     }

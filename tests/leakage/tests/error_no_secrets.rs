@@ -38,6 +38,8 @@ use seed_gop_ui::gop::mode::ModeSelectError;
 use seed_platform_x86::boot::BannerError;
 use seed_platform_x86::input::{SelfTestExpectation, SelfTestFailure};
 use seed_platform_x86::rng::efi_rng::EfiRngError;
+use seed_platform_x86::rng::tpm12::Tpm12Error;
+use seed_platform_x86::rng::tpm2::Tpm2Error;
 use seed_platform_x86::rng::health::HealthError;
 use seed_platform_x86::rng::rdrand::RdrandError;
 use seed_platform_x86::rng::rdseed::Rdseed64Error;
@@ -134,7 +136,40 @@ fn assert_parse_error_kind_shape(e: &ParseErrorKind) {
         | InvalidBoolean | InvalidInteger | IntegerOverflow | InvalidString | StringTooLong | InvalidArray | TooManyAlgorithms
         | TooManyCpuRules | TooManyDenylistEntries | TooManyUsbTrngDevices | UnknownUsbTrngProfile | UnsupportedUsbClass
         | UsbTrngMinReadBytesOutOfRange | MissingField | InvalidRange | RdrandSoleSourceNotAllowed
+        // SPEC_TPM_ENTROPY.md §8.2 hard-rule rejections: unit variants,
+        // no payload (the offending values are policy-file text, never
+        // secrets, and are not carried regardless).
+        | Tpm2SoleSourceNotAllowed | Tpm2MaxBytesMustBe32
+        // SPEC_TPM12_ENTROPY.md §2 hard-rule rejections: unit variants.
+        | Tpm12SoleSourceNotAllowed | Tpm12MaxBytesMustBe32 | Tpm12ReadRoundsOutOfRange
         | RdrandMustBeSupplementaryOnly | RdseedMustBe64Bit | TrailingContent => {}
+    }
+}
+
+/// SPEC_TPM12_ENTROPY.md §4/§5 (`seed_platform_x86::rng::tpm12::Tpm12Error`):
+/// every variant is a unit variant except `Health` (already proven).
+/// Enumerated from day one, like `Tpm2Error` below.
+fn assert_tpm12_error_shape(e: &Tpm12Error) {
+    use Tpm12Error::*;
+    match e {
+        NotApproved | NotPresent | Unavailable | ManufacturerRefused | ResponseMalformed
+        | TpmErrorCode | RetriesExhausted | ZeroBytesReturned | RoundsExhausted
+        | DeadlineExceeded => {}
+        Health(inner) => assert_health_error_shape(inner),
+    }
+}
+
+/// SPEC_TPM_ENTROPY.md §7/§9 (`seed_platform_x86::rng::tpm2::Tpm2Error`):
+/// every variant is a unit variant except `Health`, which wraps the
+/// already-proven-field-free [`HealthError`]. Enumerated here from day
+/// one — deliberately NOT added to the module doc's known-coverage-gap
+/// list.
+fn assert_tpm2_error_shape(e: &Tpm2Error) {
+    use Tpm2Error::*;
+    match e {
+        NotApproved | NotPresent | Unavailable | ManufacturerRefused | ResponseMalformed
+        | TpmErrorCode | RetriesExhausted | DeadlineExceeded => {}
+        Health(inner) => assert_health_error_shape(inner),
     }
 }
 
@@ -366,6 +401,36 @@ fn wrapper_error_enums_only_wrap_already_field_free_types() {
         Rdseed64Error::Health(HealthError::IdenticalConsecutiveBlocks),
     ] {
         assert_rdseed64_error_shape(&e);
+    }
+
+    for e in [
+        Tpm2Error::NotApproved,
+        Tpm2Error::NotPresent,
+        Tpm2Error::Unavailable,
+        Tpm2Error::ManufacturerRefused,
+        Tpm2Error::ResponseMalformed,
+        Tpm2Error::TpmErrorCode,
+        Tpm2Error::RetriesExhausted,
+        Tpm2Error::DeadlineExceeded,
+        Tpm2Error::Health(HealthError::AllZero),
+    ] {
+        assert_tpm2_error_shape(&e);
+    }
+
+    for e in [
+        Tpm12Error::NotApproved,
+        Tpm12Error::NotPresent,
+        Tpm12Error::Unavailable,
+        Tpm12Error::ManufacturerRefused,
+        Tpm12Error::ResponseMalformed,
+        Tpm12Error::TpmErrorCode,
+        Tpm12Error::RetriesExhausted,
+        Tpm12Error::ZeroBytesReturned,
+        Tpm12Error::RoundsExhausted,
+        Tpm12Error::DeadlineExceeded,
+        Tpm12Error::Health(HealthError::AllFf),
+    ] {
+        assert_tpm12_error_shape(&e);
     }
 
     assert_pipeline_error_shape(&PipelineError::Transcript(TranscriptError::DuplicateTag));

@@ -1,4 +1,4 @@
-# Machine randomness: EFI RNG, RDSEED, RDRAND, and why you can't watch it work
+# Machine randomness: EFI RNG, RDSEED, RDRAND, TPM, and why you can't watch it work
 
 SPEC §34.3 requires this explained: EFI RNG; RDSEED; supplementary-only
 RDRAND; CPU and firmware errata; health checks versus proof; lack of
@@ -21,7 +21,7 @@ never implies approval: the code checks the policy explicitly for every
 source before using it (`crates/seed-protocol/src/policy/`,
 `crates/seed-platform-x86/src/rng/`).
 
-## The three source classes
+## The source classes
 
 ### `EFI_RNG_PROTOCOL` (the UEFI RNG protocol)
 
@@ -66,6 +66,26 @@ way). Its output may still be sampled and tagged into the transcript,
 but it can never by itself make an otherwise-unsupported platform
 "approved," and it is never described as independent from `RDSEED` or
 the EFI RNG, because it draws from a related underlying source.
+
+### TPM `GetRandom` (opt-in, ships policy-disabled)
+
+The platform TPM — a discrete security chip on some boards, firmware
+inside the CPU package (Intel PTT / AMD fTPM) on many others — exposes
+its own random-number generator, and Alea can mix it in as an
+**explicitly opt-in extra**: a "Machine extras" toggle on the setup
+screen, default off. Both TPM 2.0 (via the TCG2 protocol) and the older
+TPM 1.2 family are implemented, each behind its own policy section, and
+the shipped policy disables both until the review process approves them
+— availability is never approval, same as every other source here.
+
+The honesty rules are unchanged and worth restating for this source in
+particular: a TPM's output is claimed, not witnessed — it contributes
+zero counted bits toward the physical-entropy floor. Alea cannot prove
+whether the "TPM" answering is a separate chip or firmware pretending to
+be one, so it never claims TPM output is independent of the CPU's own
+sources. And a TPM 1.2 part is 2005-era silicon with an older RNG
+design, which the ceremony's education panel says out loud rather than
+hiding.
 
 ## Health checks are not proof
 

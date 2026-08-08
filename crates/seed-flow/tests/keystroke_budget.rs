@@ -572,6 +572,7 @@ impl PlatformInfoGate for CleanGates {
             secure_boot: SecureBootStatus::Enabled,
             entropy_policy_version: Some(1),
             production_markers_verified: true,
+            tpm_status: "detected",
         }
     }
 }
@@ -595,6 +596,7 @@ struct FrozenRdseedGate {
 impl MachineSourceGate for FrozenRdseedGate {
     fn acquire(
         &mut self,
+        _extras: seed_flow::flow_secret::machine::MachineExtras,
         into: &mut AcquiredSources,
         _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError> {
@@ -718,6 +720,7 @@ fn run_ceremony(tape: Vec<Press>, rdseed_bytes: Vec<u8>) -> RunReport {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: seed_flow::flow_secret::machine::MachineExtras::default(),
             instrument,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: BUILD_ID,

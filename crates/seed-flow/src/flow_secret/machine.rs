@@ -90,22 +90,27 @@ impl Drop for AcquiredSource {
     }
 }
 
-/// Up to three machine sources acquired in one ceremony (SPEC §19.1:
-/// `ApprovedEfiRng` / `X86Rdseed64` / `X86RdrandSupplementary`).
+/// Up to five machine sources acquired in one ceremony (SPEC §19.1:
+/// `ApprovedEfiRng` / `X86Rdseed64` / `X86RdrandSupplementary`, plus
+/// `Tpm2GetRandom` — SPEC_TPM_ENTROPY.md §6.3 — and `Tpm12GetRandom` —
+/// SPEC_TPM12_ENTROPY.md §1; the §6 family-exclusive rule means at most
+/// one of the two TPM slots is ever filled in practice, enforced at the
+/// gate, not here. `ApprovedUsbTrng` does not flow through this
+/// container today; its WP-U4-blocked read path has no gate wiring).
 pub struct AcquiredSources {
-    slots: [Option<AcquiredSource>; 3],
+    slots: [Option<AcquiredSource>; 5],
     len: usize,
 }
 
 impl AcquiredSources {
     #[must_use]
     pub const fn new() -> Self {
-        Self { slots: [None, None, None], len: 0 }
+        Self { slots: [None, None, None, None, None], len: 0 }
     }
 
-    /// Appends `source`. Silently drops it if capacity (3) is already
-    /// reached — unreachable given SPEC §19.1 defines exactly three
-    /// machine-source tags, kept as a defensive bound rather than a
+    /// Appends `source`. Silently drops it if capacity (5) is already
+    /// reached — unreachable given the five machine-source tags this
+    /// container can carry, kept as a defensive bound rather than a
     /// panic (SPEC §13/§27.2: no panics on this path).
     pub fn push(&mut self, source: AcquiredSource) {
         if self.len < self.slots.len() {
@@ -183,6 +188,17 @@ impl AcquiredSources {
             // both the honest current answer and the fail-closed default
             // once WP-U4 lands and wires a real gate query.
             SourceTag::ApprovedUsbTrng => false,
+            // SPEC_TPM_ENTROPY.md §8.2: TPM sole-source participation is
+            // parser-forbidden absolutely in this version (the policy
+            // parser rejects `sole_source_allowed = true` for `[tpm2]`,
+            // the same no-override posture as RDRAND above) — pre-boot
+            // code cannot distinguish a discrete TPM from an fTPM sharing
+            // the CPU package, so "TPM alone" could silently mean "this
+            // CPU package alone, twice". Hard `false`, not a policy read.
+            SourceTag::Tpm2GetRandom => false,
+            // SPEC_TPM12_ENTROPY.md inherits the §8.2 prohibition
+            // verbatim: a 1.2 part never stands alone either.
+            SourceTag::Tpm12GetRandom => false,
             // Never acquired into `AcquiredSources` (physical sources
             // live in `crate::flow_secret::physical::PhysicalStaging`
             // instead) — exhaustive, not a wildcard, so a future new
@@ -243,11 +259,36 @@ pub trait MachineSourceGate {
     /// no secret bytes; SPEC §21 progress indication for the acquiring
     /// screen, real-hardware slow-RDSEED fix), so a legitimately slow but
     /// working source does not look frozen.
+    ///
+    /// `extras` carries the user's §22.5b opt-in selections
+    /// (SPEC_TPM_ENTROPY.md §11a): an optional source whose flag is OFF
+    /// is not sampled at all — no probe, no record — regardless of policy
+    /// approval. The baseline sources (EFI RNG / RDSEED / RDRAND) are not
+    /// governed by `extras`; they remain pure policy decisions.
     fn acquire(
         &mut self,
+        extras: MachineExtras,
         into: &mut AcquiredSources,
         observer: &mut dyn AcquisitionObserver,
     ) -> Result<(), MachineAcquisitionError>;
+}
+
+/// The user's §22.5b machine-extras opt-in selections
+/// (SPEC_TPM_ENTROPY.md §11a: "extra choice" model, decision
+/// 2026-08-08). Non-secret plain data — which *categories* of optional
+/// source the user added, never any sampled bytes. Every flag defaults
+/// to OFF: adding a claimed source is an explicit user act.
+///
+/// `usb_trng` exists now so the §22.5b panel's plumbing is complete the
+/// day WP-U4 lands a real read path; no current gate samples USB on any
+/// path (`SPEC_USB_TRNG` §7.2 remains BLOCKED).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MachineExtras {
+    /// "Add TPM entropy" (SPEC_TPM_ENTROPY.md §11a).
+    pub tpm: bool,
+    /// "Add USB TRNG" (SPEC_USB_TRNG_DEVICES.md §5a) — plumbed, inert
+    /// until WP-U4.
+    pub usb_trng: bool,
 }
 
 pub const ACQUIRING_LINE: &str = "Sampling approved machine entropy source(s)...";
@@ -373,8 +414,11 @@ pub fn render_machine_failed(out: &mut dyn TextOutput, err: MachineAcquisitionEr
     out.write_line(EXIT_LINE);
 }
 
-/// Assemble a [`MachineSourceGate::acquire`] result from up to three raw
-/// per-mechanism sampling outcomes (SPEC §15, §15.3, §18.2). Production
+/// Assemble a [`MachineSourceGate::acquire`] result from up to five raw
+/// per-mechanism sampling outcomes (SPEC §15, §15.3, §18.2;
+/// SPEC_TPM_ENTROPY.md §10; SPEC_TPM12_ENTROPY.md §6 — the gate never
+/// passes both TPM families at once, but this pure function does not
+/// depend on that). Production
 /// wiring (`ProdMachineSourceGate` in `crates/seed-uefi-test/src/
 /// flow_secret/mod.rs`, verified only by cross-compilation) delegates
 /// the actual pass/fail decision to this pure, host-testable function
@@ -411,6 +455,8 @@ pub fn assemble_acquired_sources(
     efi_rng: Option<AcquiredSource>,
     rdseed: Option<AcquiredSource>,
     rdrand: Option<AcquiredSource>,
+    tpm: Option<AcquiredSource>,
+    tpm12: Option<AcquiredSource>,
     into: &mut AcquiredSources,
 ) -> Result<(), MachineAcquisitionError> {
     let mut primary_succeeded = false;
@@ -419,6 +465,21 @@ pub fn assemble_acquired_sources(
         primary_succeeded = true;
     }
     if let Some(rec) = rdseed {
+        into.push(rec);
+        primary_succeeded = true;
+    }
+    // SPEC_TPM_ENTROPY.md §10: a TPM record is a real acquired source
+    // (primary here, like EFI RNG) — the *mode* question of whether TPM
+    // could ever stand alone for MachineOnly is answered separately, and
+    // always "no", by `AcquiredSources::has_sole_source_approved`'s hard
+    // `false` arm (§8.2), not by this assembly step.
+    if let Some(rec) = tpm {
+        into.push(rec);
+        primary_succeeded = true;
+    }
+    // SPEC_TPM12_ENTROPY.md §6: same primary treatment; sole-source for
+    // MachineOnly is still hard-denied by `has_sole_source_approved`.
+    if let Some(rec) = tpm12 {
         into.push(rec);
         primary_succeeded = true;
     }
@@ -581,6 +642,7 @@ mod tests {
     impl MachineSourceGate for FixedGate {
         fn acquire(
             &mut self,
+            _extras: MachineExtras,
             into: &mut AcquiredSources,
             _observer: &mut dyn AcquisitionObserver,
         ) -> Result<(), MachineAcquisitionError> {
@@ -601,7 +663,7 @@ mod tests {
         let mut gate = FixedGate { result: Ok(std::vec![(SourceTag::X86Rdseed64, std::vec![7u8; 32])]) };
         let mut into = AcquiredSources::new();
         let mut obs = seed_platform_x86::rng::progress::NullObserver;
-        assert!(gate.acquire(&mut into, &mut obs).is_ok());
+        assert!(gate.acquire(MachineExtras::default(), &mut into, &mut obs).is_ok());
         assert_eq!(into.len(), 1);
     }
 
@@ -610,7 +672,7 @@ mod tests {
         let mut gate = FixedGate { result: Err(MachineAcquisitionError::NoSourceAvailable) };
         let mut into = AcquiredSources::new();
         let mut obs = seed_platform_x86::rng::progress::NullObserver;
-        assert_eq!(gate.acquire(&mut into, &mut obs), Err(MachineAcquisitionError::NoSourceAvailable));
+        assert_eq!(gate.acquire(MachineExtras::default(), &mut into, &mut obs), Err(MachineAcquisitionError::NoSourceAvailable));
         assert!(into.is_empty());
     }
 
@@ -622,7 +684,7 @@ mod tests {
         let mut gate = FixedGate { result: Err(MachineAcquisitionError::SourceTimedOut) };
         let mut into = AcquiredSources::new();
         let mut obs = seed_platform_x86::rng::progress::NullObserver;
-        assert_eq!(gate.acquire(&mut into, &mut obs), Err(MachineAcquisitionError::SourceTimedOut));
+        assert_eq!(gate.acquire(MachineExtras::default(), &mut into, &mut obs), Err(MachineAcquisitionError::SourceTimedOut));
         assert!(into.is_empty());
     }
 
@@ -632,11 +694,69 @@ mod tests {
     // machine-source acquisition.
     // ------------------------------------------------------------------
 
+    /// SPEC_TPM_ENTROPY.md §10: an opted-in, healthy TPM record is a
+    /// primary acquisition success on its own — a Combined ceremony whose
+    /// baseline machine sources all failed still delivers the TPM mix.
+    /// (MachineOnly-mode eligibility is separately, and always, denied
+    /// for TPM by `has_sole_source_approved` — tested below.)
+    #[test]
+    fn assemble_tpm_alone_succeeds() {
+        let tpm = AcquiredSource::new(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &[0x33u8; 32]).unwrap();
+        let mut into = AcquiredSources::new();
+        let result = assemble_acquired_sources(None, None, None, Some(tpm), None, &mut into);
+        assert!(result.is_ok());
+        assert_eq!(into.len(), 1);
+    }
+
+    /// SPEC §15.3 unchanged by the TPM: RDRAND supplements a TPM primary
+    /// exactly as it supplements EFI RNG/RDSEED.
+    #[test]
+    fn assemble_rdrand_with_tpm_primary_is_included() {
+        let tpm = AcquiredSource::new(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &[0x33u8; 32]).unwrap();
+        let rdrand = AcquiredSource::new(SourceTag::X86RdrandSupplementary, b"RDRAND", &[0xAAu8; 32]).unwrap();
+        let mut into = AcquiredSources::new();
+        let result = assemble_acquired_sources(None, None, Some(rdrand), Some(tpm), None, &mut into);
+        assert!(result.is_ok());
+        assert_eq!(into.len(), 2);
+    }
+
+    /// All four mechanisms at once fill the grown 4-slot container.
+    #[test]
+    fn assemble_all_four_sources_fills_four_slots() {
+        let efi = AcquiredSource::new(SourceTag::ApprovedEfiRng, b"CTR-DRBG", &[0x11u8; 32]).unwrap();
+        let rdseed = AcquiredSource::new(SourceTag::X86Rdseed64, b"RDSEED64", &[0x22u8; 32]).unwrap();
+        let rdrand = AcquiredSource::new(SourceTag::X86RdrandSupplementary, b"RDRAND", &[0xAAu8; 32]).unwrap();
+        let tpm = AcquiredSource::new(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &[0x33u8; 32]).unwrap();
+        let mut into = AcquiredSources::new();
+        let result = assemble_acquired_sources(Some(efi), Some(rdseed), Some(rdrand), Some(tpm), None, &mut into);
+        assert!(result.is_ok());
+        assert_eq!(into.len(), 4);
+    }
+
+    /// SPEC_TPM_ENTROPY.md §8.2: an acquired TPM record NEVER counts as
+    /// sole-source-approved, regardless of what any gate reports.
+    #[test]
+    fn tpm_record_never_counts_as_sole_source() {
+        struct AllSoleGate;
+        impl MachineAvailabilityGate for AllSoleGate {
+            fn efi_rng(&mut self) -> crate::entropy_avail::SourceAvailability {
+                crate::entropy_avail::SourceAvailability { approved: true, sole_source_allowed: true }
+            }
+            fn rdseed(&mut self) -> crate::entropy_avail::SourceAvailability {
+                crate::entropy_avail::SourceAvailability { approved: true, sole_source_allowed: true }
+            }
+        }
+        let tpm = AcquiredSource::new(SourceTag::Tpm2GetRandom, b"TPM2/GetRandom", &[0x33u8; 32]).unwrap();
+        let mut into = AcquiredSources::new();
+        into.push(tpm);
+        assert!(!into.has_sole_source_approved(&mut AllSoleGate));
+    }
+
     #[test]
     fn assemble_rdrand_alone_is_rejected_never_enables_machine_only() {
         let rdrand = AcquiredSource::new(SourceTag::X86RdrandSupplementary, b"RDRAND", &[0xAAu8; 32]).unwrap();
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(None, None, Some(rdrand), &mut into);
+        let result = assemble_acquired_sources(None, None, Some(rdrand), None, None, &mut into);
         assert_eq!(result, Err(MachineAcquisitionError::NoSourceAvailable));
         assert!(into.is_empty(), "RDRAND-only bytes must never be pushed into the acquired set");
     }
@@ -644,7 +764,7 @@ mod tests {
     #[test]
     fn assemble_no_sources_is_rejected() {
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(None, None, None, &mut into);
+        let result = assemble_acquired_sources(None, None, None, None, None, &mut into);
         assert_eq!(result, Err(MachineAcquisitionError::NoSourceAvailable));
         assert!(into.is_empty());
     }
@@ -653,7 +773,7 @@ mod tests {
     fn assemble_efi_rng_alone_succeeds_without_rdrand() {
         let efi_rng = AcquiredSource::new(SourceTag::ApprovedEfiRng, b"CTR-DRBG", &[0x11u8; 32]).unwrap();
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(Some(efi_rng), None, None, &mut into);
+        let result = assemble_acquired_sources(Some(efi_rng), None, None, None, None, &mut into);
         assert!(result.is_ok());
         assert_eq!(into.len(), 1);
     }
@@ -662,7 +782,7 @@ mod tests {
     fn assemble_rdseed_alone_succeeds_without_rdrand() {
         let rdseed = AcquiredSource::new(SourceTag::X86Rdseed64, b"RDSEED64", &[0x22u8; 32]).unwrap();
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(None, Some(rdseed), None, &mut into);
+        let result = assemble_acquired_sources(None, Some(rdseed), None, None, None, &mut into);
         assert!(result.is_ok());
         assert_eq!(into.len(), 1);
     }
@@ -674,7 +794,7 @@ mod tests {
         let rdseed = AcquiredSource::new(SourceTag::X86Rdseed64, b"RDSEED64", &[0x22u8; 32]).unwrap();
         let rdrand = AcquiredSource::new(SourceTag::X86RdrandSupplementary, b"RDRAND", &[0xAAu8; 32]).unwrap();
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(None, Some(rdseed), Some(rdrand), &mut into);
+        let result = assemble_acquired_sources(None, Some(rdseed), Some(rdrand), None, None, &mut into);
         assert!(result.is_ok());
         assert_eq!(into.len(), 2);
         let tags: std::vec::Vec<SourceTag> = into.iter().map(AcquiredSource::tag).collect();
@@ -690,7 +810,7 @@ mod tests {
         // acquisition, not a silent RDRAND-only success.
         let rdrand = AcquiredSource::new(SourceTag::X86RdrandSupplementary, b"RDRAND", &[0x55u8; 32]).unwrap();
         let mut into = AcquiredSources::new();
-        let result = assemble_acquired_sources(None, None, Some(rdrand), &mut into);
+        let result = assemble_acquired_sources(None, None, Some(rdrand), None, None, &mut into);
         assert_eq!(result, Err(MachineAcquisitionError::NoSourceAvailable));
         assert!(into.is_empty());
     }

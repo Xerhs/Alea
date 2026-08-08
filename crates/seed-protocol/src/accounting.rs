@@ -28,10 +28,15 @@ pub enum EntropyCategory {
 pub const fn category_of(tag: SourceTag) -> EntropyCategory {
     match tag {
         SourceTag::DiceRolls | SourceTag::CoinFlips => EntropyCategory::CountedWitnessed,
+        // `Tpm2GetRandom` (`0x13`, SPEC_TPM_ENTROPY.md §6.1): same rule —
+        // claimed machine material, 0 counted bits (SPEC_TPM_ENTROPY.md
+        // §10), never a `CountedWitnessed` arm.
         SourceTag::ApprovedEfiRng
         | SourceTag::X86Rdseed64
         | SourceTag::X86RdrandSupplementary
-        | SourceTag::ApprovedUsbTrng => EntropyCategory::ClaimedUnproven,
+        | SourceTag::ApprovedUsbTrng
+        | SourceTag::Tpm2GetRandom
+        | SourceTag::Tpm12GetRandom => EntropyCategory::ClaimedUnproven,
     }
 }
 

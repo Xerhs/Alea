@@ -23,6 +23,20 @@ use seed_core::contracts::Style;
 /// text from.
 pub const MARGIN_X: u32 = GLYPH_WIDTH * 2;
 
+/// Left pixel origin of the fixed 6x4 BIP39 word-slot grid
+/// (`font::draw_word`, SPEC §12.2 "Fixed layouts") — aligned with
+/// [`MARGIN_X`] so the Stage-6 BACKUP screen's grid sits inside the
+/// redesigned shell's content margins (design doc §4 Stage 6).
+pub const WORD_GRID_LEFT: u32 = MARGIN_X;
+
+/// Top pixel origin of the word-slot grid: clears the chrome header band
+/// (`seed-flow`'s `chrome::BAND_HEIGHT` = 2 x [`LINE_PITCH`] = 48px, plus
+/// its 1px rule) AND one 2x-scale title row with breathing room. A
+/// reviewed fixed constant (SPEC §12.2), asserted against the chrome
+/// geometry by `seed-flow`'s Stage-6 fit audit rather than imported from
+/// it (dependency direction: `seed-flow` -> this crate).
+pub const WORD_GRID_TOP: u32 = 112;
+
 /// Vertical distance between consecutive text lines — one and a half
 /// glyph cells, giving comfortable line spacing without wasting vertical
 /// space at the 800x600 resolution floor.

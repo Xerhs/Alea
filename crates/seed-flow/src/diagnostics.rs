@@ -250,6 +250,12 @@ impl SecureBootStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlatformInfo {
     pub secure_boot: SecureBootStatus,
+    /// SPEC_TPM_ENTROPY.md §7.1 detection status, as a fixed disclosure
+    /// label for the SPEC §22.3 recap (e.g. "detected", "no TCG2
+    /// protocol", "policy off"). Diagnostics only — never a security
+    /// claim, and never the availability decision itself (that is
+    /// `MachineAvailabilityGate::tpm`).
+    pub tpm_status: &'static str,
     /// `None` when no entropy policy could be loaded at all — this alone
     /// does not disable generation (see `crate::entropy_avail`): it just
     /// means no machine source will ever show as available.
@@ -283,6 +289,9 @@ pub trait PlatformInfoGate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiagRecap {
     pub architecture_line: &'static str,
+    /// SPEC_TPM_ENTROPY.md §7.1 detection-status label (see
+    /// [`PlatformInfo::tpm_status`]).
+    pub tpm_status: &'static str,
     pub con_out_paths: u8,
     pub con_in_paths: u8,
     pub secure_boot: SecureBootStatus,
@@ -305,6 +314,7 @@ impl DiagRecap {
     ) -> Self {
         Self {
             architecture_line: platform.architecture_line,
+            tpm_status: info.tpm_status,
             con_out_paths: console.con_out_paths,
             con_in_paths: console.con_in_paths,
             secure_boot: info.secure_boot,
@@ -324,6 +334,7 @@ impl DiagRecap {
     pub const fn unknown() -> Self {
         Self {
             architecture_line: "unknown",
+            tpm_status: "unknown",
             con_out_paths: 0,
             con_in_paths: 0,
             secure_boot: SecureBootStatus::Unknown,
@@ -628,6 +639,7 @@ mod tests {
             secure_boot: SecureBootStatus::Enabled,
             entropy_policy_version: Some(1),
             production_markers_verified: true,
+            tpm_status: "detected",
         }
     }
 

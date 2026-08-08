@@ -507,7 +507,17 @@ pub fn run_rehearsal(
                     let avail = compute_mode_availability(&mut g_machine_availability);
                     screens::setup::render(fb, &setup, &avail, &recap, BUILD_ID);
                     match setup.handle_key(keys.read_menu_key(), &avail) {
-                        Some(screens::setup::SetupOutcome::Committed { words24, mode, instrument: instr }) => {
+                        // §22.5b extras are deliberately dropped here: this
+                        // desktop edition's `DesktopGates` reports every
+                        // machine source unavailable (SPEC §4.3), so the
+                        // extras row never renders and the committed set is
+                        // always all-OFF anyway.
+                        Some(screens::setup::SetupOutcome::Committed {
+                            words24,
+                            mode,
+                            instrument: instr,
+                            extras: _,
+                        }) => {
                             break Some((words24, mode, instr));
                         }
                         Some(screens::setup::SetupOutcome::Back) => break None,
@@ -572,7 +582,7 @@ pub fn run_rehearsal(
             AppState::MnemonicDisplay => {
                 let count = word_count_len(word_count);
                 seed_gop_ui::font::scrub_fill(fb, 0);
-                display::render_mnemonic_display(fb, arena.mnemonic_indexes(), count);
+                display::render_mnemonic_display(fb, arena.mnemonic_indexes(), count, BUILD_ID);
                 render_fixed_vector_notice(fb, word_count);
                 match display::read_display_choice(keys) {
                     display::DisplayChoice::Hide => {
@@ -585,7 +595,7 @@ pub fn run_rehearsal(
             }
 
             AppState::DestroyConfirm => {
-                display::render_destroy_confirm(fb);
+                display::render_destroy_confirm(fb, BUILD_ID);
                 // This desktop harness models the frozen state machine, not
                 // the production driver's terminal menu-vs-power-off branch
                 // (SPEC §26 amendment 2026-08-08); both destructive choices
@@ -609,7 +619,7 @@ pub fn run_rehearsal(
             AppState::CompleteHiddenReentry => {
                 let count = word_count_len(word_count);
                 let outcome =
-                    reentry::read_and_check_one_word(fb, keys, position, count, &arena.mnemonic_indexes()[position]);
+                    reentry::read_and_check_one_word(fb, keys, position, count, &arena.mnemonic_indexes()[position], BUILD_ID);
                 match outcome {
                     reentry::ReentryOutcome::Matched => {
                         position += 1;
@@ -626,7 +636,7 @@ pub fn run_rehearsal(
             }
 
             AppState::ReentryMismatchChoice => {
-                reentry::render_mismatch_screen(fb);
+                reentry::render_mismatch_screen(fb, BUILD_ID);
                 let ev = match reentry::read_mismatch_choice(keys) {
                     reentry::MismatchChoice::Retry => Event::RetryPosition,
                     reentry::MismatchChoice::RevealAgain => Event::RevealAgain,

@@ -133,6 +133,13 @@ pub struct SecretProviders<'a, SK: KeySource> {
     /// user backs out to `SetupSelection` and picks a physical mode
     /// again (§2.2). Both key families stay accepted regardless (§2.3).
     pub instrument: physical::Instrument,
+    /// SPEC_TPM_ENTROPY.md §11a (§22.5b): the machine-extras opt-ins
+    /// committed pre-hand-off (threaded here from
+    /// `FlowResult::extras`), used as the *initial* extras set for
+    /// `MachineSourceGate::acquire`; re-chosen if the user backs out to
+    /// `SetupSelection` and re-commits. All-OFF by default — an extra is
+    /// only ever sampled after an explicit toggle.
+    pub extras: machine::MachineExtras,
     /// SPEC_PASSPHRASE §8: how this edition decides whether the optional
     /// passphrase may be entered — the desktop rehearsal edition trusts the
     /// host keyboard; the bootable UEFI editions require the fail-closed
@@ -315,6 +322,11 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
     // `run_physical_entry`. Seeded from the pre-secret sub-selection and
     // re-chosen on a Back->SetupSelection->physical-mode re-pick.
     let mut instrument = p.instrument;
+    // SPEC_TPM_ENTROPY.md §11a (§22.5b): the machine-extras opt-ins,
+    // seeded from the pre-secret Stage-3 commit and re-chosen on a
+    // Back->SetupSelection re-commit. A flag is only ever ON via an
+    // explicit user toggle on that screen (all-OFF default upstream).
+    let mut extras = p.extras;
 
     loop {
         match sm.state() {
@@ -322,7 +334,7 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
                 machine::render_acquiring(p.text_out);
                 let acquire_result = {
                     let mut progress = ConsoleProgress { out: p.text_out };
-                    p.machine_gate.acquire(&mut machine_sources, &mut progress)
+                    p.machine_gate.acquire(extras, &mut machine_sources, &mut progress)
                 };
                 let ev = match acquire_result {
                     Ok(()) => Event::MachineEntropyComplete,
@@ -494,20 +506,27 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
                 let mut setup = screens::setup::SetupState::new();
                 setup.words24 = committed_word_count == WordCount::TwentyFour;
                 setup.instrument = instrument;
+                setup.extras = extras;
                 let committed = loop {
                     let avail = compute_mode_availability(p.machine_availability);
                     screens::setup::render(p.fb, &setup, &avail, &p.recap, p.build_id);
                     match setup.handle_key(p.menu_keys.read_menu_key(), &avail) {
-                        Some(screens::setup::SetupOutcome::Committed { words24, mode, instrument: instr }) => {
-                            break Some((words24, mode, instr));
+                        Some(screens::setup::SetupOutcome::Committed {
+                            words24,
+                            mode,
+                            instrument: instr,
+                            extras: ex,
+                        }) => {
+                            break Some((words24, mode, instr, ex));
                         }
                         Some(screens::setup::SetupOutcome::Back) => break None,
                         None => {}
                     }
                 };
                 match committed {
-                    Some((words24, mode, instr)) => {
+                    Some((words24, mode, instr, ex)) => {
                         instrument = instr;
+                        extras = ex;
                         // A Back out of `PhysicalCollection` (or
                         // `MachineEntropyAcquisition`) returns here with any
                         // machine-entropy records from a PRIOR
@@ -561,7 +580,7 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
             AppState::MnemonicDisplay => {
                 let count = word_count_len(word_count);
                 seed_gop_ui::font::scrub_fill(p.fb, 0);
-                display::render_mnemonic_display(p.fb, arena.mnemonic_indexes(), count);
+                display::render_mnemonic_display(p.fb, arena.mnemonic_indexes(), count, p.build_id);
                 match display::read_display_choice(p.secret_keys) {
                     display::DisplayChoice::Hide => {
                         transition(sm, watchdog, Event::HideAndReenter);
@@ -573,7 +592,7 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
             }
 
             AppState::DestroyConfirm => {
-                display::render_destroy_confirm(p.fb);
+                display::render_destroy_confirm(p.fb, p.build_id);
                 // SPEC §26 amendment (2026-08-08): both [M] and [P] confirm
                 // destruction and drive the SAME `DestroyConfirmed` edge
                 // into the frozen state machine's scrub chain; they differ
@@ -620,7 +639,7 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
                     // `reentry::read_and_check_one_word`'s own doc
                     // comment).
                     let outcome =
-                        reentry::read_and_check_one_word(p.fb, p.secret_keys, position, count, expected_index);
+                        reentry::read_and_check_one_word(p.fb, p.secret_keys, position, count, expected_index, p.build_id);
                     match outcome {
                         reentry::ReentryOutcome::Matched => {
                             position += 1;
@@ -640,7 +659,7 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
             }
 
             AppState::ReentryMismatchChoice => {
-                reentry::render_mismatch_screen(p.fb);
+                reentry::render_mismatch_screen(p.fb, p.build_id);
                 let ev = match reentry::read_mismatch_choice(p.secret_keys) {
                     reentry::MismatchChoice::Retry => Event::RetryPosition,
                     reentry::MismatchChoice::RevealAgain => Event::RevealAgain,
@@ -1320,6 +1339,7 @@ mod tests {
     impl MachineSourceGate for UnusedMachineGate {
         fn acquire(
             &mut self,
+            _extras: machine::MachineExtras,
             _into: &mut AcquiredSources,
             _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
         ) -> Result<(), MachineAcquisitionError> {
@@ -1335,6 +1355,7 @@ mod tests {
     impl MachineSourceGate for FailingMachineGate {
         fn acquire(
             &mut self,
+            _extras: machine::MachineExtras,
             _into: &mut AcquiredSources,
             _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
         ) -> Result<(), MachineAcquisitionError> {
@@ -1367,6 +1388,7 @@ mod tests {
     impl MachineSourceGate for ApprovedNotSoleMachineGate {
         fn acquire(
             &mut self,
+            _extras: machine::MachineExtras,
             into: &mut AcquiredSources,
             _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
         ) -> Result<(), MachineAcquisitionError> {
@@ -1395,6 +1417,7 @@ mod tests {
     impl MachineSourceGate for FixedRdseedMachineGate {
         fn acquire(
             &mut self,
+            _extras: machine::MachineExtras,
             into: &mut AcquiredSources,
             _observer: &mut dyn seed_platform_x86::rng::progress::AcquisitionObserver,
         ) -> Result<(), MachineAcquisitionError> {
@@ -1662,6 +1685,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -1736,6 +1760,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -1819,6 +1844,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -1915,6 +1941,7 @@ mod tests {
                 machine_gate: &mut mgate,
                 shutdown: &mut shutdown,
                 fault_hook: &mut hook,
+                extras: machine::MachineExtras::default(),
                 instrument: physical::Instrument::Both,
                 passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
                 build_id: TEST_BUILD_ID,
@@ -1970,6 +1997,7 @@ mod tests {
                 machine_gate: &mut mgate,
                 shutdown: &mut shutdown,
                 fault_hook: &mut hook,
+                extras: machine::MachineExtras::default(),
                 instrument: physical::Instrument::Both,
                 passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
                 build_id: TEST_BUILD_ID,
@@ -2038,6 +2066,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2086,6 +2115,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2144,6 +2174,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2488,6 +2519,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2578,6 +2610,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2659,6 +2692,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2729,6 +2763,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2874,6 +2909,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -2948,6 +2984,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3151,6 +3188,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3223,6 +3261,7 @@ mod tests {
                 machine_gate: &mut mgate,
                 shutdown: &mut shutdown,
                 fault_hook: &mut hook,
+                extras: machine::MachineExtras::default(),
                 instrument: physical::Instrument::Both,
                 passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
                 build_id: TEST_BUILD_ID,
@@ -3498,6 +3537,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3568,6 +3608,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3683,6 +3724,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3864,6 +3906,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3929,6 +3972,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,
@@ -3987,6 +4031,7 @@ mod tests {
             machine_gate: &mut mgate,
             shutdown: &mut shutdown,
             fault_hook: &mut hook,
+            extras: machine::MachineExtras::default(),
             instrument: physical::Instrument::Both,
             passphrase_policy: PassphraseKeyboardPolicy::HostKeyboardTrusted,
             build_id: TEST_BUILD_ID,

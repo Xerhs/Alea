@@ -248,13 +248,30 @@ fi
 echo "PASS: no unreviewed environment-variable reads in the production-reachable source tree."
 
 uefi_var_hits="$(grep -rnE 'GetVariable|get_variable' "${PRODUCTION_SRC_DIRS[@]}" || true)"
-if [ -n "$uefi_var_hits" ]; then
-    echo "FAIL: UEFI variable read found in the production-reachable source tree (SPEC"
-    echo "      §28: no hidden UEFI variable may change entropy behavior); review needed:"
-    echo "$uefi_var_hits"
+# SPEC §28 reviewed exception (2026-08-09), count-capped like the
+# exclusive-open allowlist below: `firmware_wiring.rs` may contain exactly
+# TWO `get_variable` calls — the read-only, display-only SecureBoot /
+# SetupMode reads feeding the §22.3 recap's Secure Boot line
+# (`secure_boot_status()`; full rationale in
+# tools/binary-policy-scanner/tests/no_hidden_entropy_toggle_source_audit.rs
+# `REVIEWED_EXCEPTIONS`). A third occurrence in that file, or any hit in
+# any other file, still fails — and `SetVariable`/`set_variable` are not
+# excepted anywhere (that suite's own scan keeps banning them outright).
+reviewed_wiring_count="$(echo "$uefi_var_hits" | grep -c 'crates/seed-flow/src/firmware_wiring.rs' || true)"
+unreviewed_uefi_var_hits="$(echo "$uefi_var_hits" | grep -v 'crates/seed-flow/src/firmware_wiring.rs' || true)"
+if [ "$reviewed_wiring_count" -gt 2 ]; then
+    echo "FAIL: firmware_wiring.rs exceeds its reviewed 2-call UEFI-variable-read cap"
+    echo "      (SPEC §28); extend the reviewed exception (a re-review), don't just add calls:"
+    echo "$uefi_var_hits" | grep 'crates/seed-flow/src/firmware_wiring.rs'
     exit 1
 fi
-echo "PASS: no UEFI GetVariable calls in the production-reachable source tree."
+if [ -n "$unreviewed_uefi_var_hits" ]; then
+    echo "FAIL: unreviewed UEFI variable read found in the production-reachable source"
+    echo "      tree (SPEC §28: no hidden UEFI variable may change entropy behavior):"
+    echo "$unreviewed_uefi_var_hits"
+    exit 1
+fi
+echo "PASS: no unreviewed UEFI GetVariable calls in the production-reachable source tree."
 
 echo "== private/machine-data scan (public-repo hygiene) =="
 # This is a PUBLIC repository: no tracked file may leak an author-local path,

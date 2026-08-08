@@ -143,7 +143,14 @@ fn slot_origin(slot: u8) -> (u32, u32) {
     let slot = slot as u32 % (WORD_SLOT_COLUMNS * WORD_SLOT_ROWS);
     let col = slot % WORD_SLOT_COLUMNS;
     let row = slot / WORD_SLOT_COLUMNS;
-    (col * WORD_SLOT_CELL_W, row * WORD_SLOT_CELL_H)
+    // Grid offset (2026-08-09 Stage-6 shell restyle, a WP-10 layout
+    // change): the grid now sits inside the redesigned chrome shell's
+    // content area instead of the raw framebuffer origin. Mirrored by
+    // `seed-flow`'s `flow_secret::display` — keep the two in lockstep.
+    (
+        crate::layout::WORD_GRID_LEFT + col * WORD_SLOT_CELL_W,
+        crate::layout::WORD_GRID_TOP + row * WORD_SLOT_CELL_H,
+    )
 }
 
 /// Render exactly ONE BIP39 mnemonic word, identified only by its
@@ -344,7 +351,10 @@ mod tests {
         // (Framebuffer, slot: u8, index: u16, Style) — there is no way to
         // pass a full mnemonic string to it. This test exercises the call
         // shape to keep the contract pinned.
-        let mut fb = VecFb::new(WORD_SLOT_COLUMNS * WORD_SLOT_CELL_W, WORD_SLOT_ROWS * WORD_SLOT_CELL_H);
+        let mut fb = VecFb::new(
+            crate::layout::WORD_GRID_LEFT + WORD_SLOT_COLUMNS * WORD_SLOT_CELL_W,
+            crate::layout::WORD_GRID_TOP + WORD_SLOT_ROWS * WORD_SLOT_CELL_H,
+        );
         draw_word(&mut fb, 0, 0, STYLE);
         draw_word(&mut fb, 11, 2047, STYLE);
         draw_word(&mut fb, 23, 1, STYLE);
@@ -370,20 +380,23 @@ mod tests {
     fn draw_word_renders_the_real_bip39_word_not_a_numeric_placeholder() {
         assert_eq!(seed_core::bip39::word(0), "abandon");
 
-        let w = WORD_SLOT_CELL_W;
-        let h = WORD_SLOT_CELL_H;
+        // Slot 0 renders at the grid origin (Stage-6 shell restyle,
+        // 2026-08-09) — compare against draw_text at that same offset.
+        let (ox, oy) = slot_origin(0);
+        let w = ox + WORD_SLOT_CELL_W;
+        let h = oy + WORD_SLOT_CELL_H;
 
         let mut fb_word = VecFb::new(w, h);
         draw_word(&mut fb_word, 0, 0, STYLE);
 
         let mut fb_expected = VecFb::new(w, h);
-        draw_text(&mut fb_expected, 0, 0, "01. abandon", STYLE);
+        draw_text(&mut fb_expected, ox, oy, "01. abandon", STYLE);
         assert_eq!(fb_word.buf, fb_expected.buf, "draw_word must render the real word \"abandon\"");
 
         // The old numeric placeholder ("01. #0") must be gone: rendering
         // it would produce different pixels than the real word.
         let mut fb_placeholder = VecFb::new(w, h);
-        draw_text(&mut fb_placeholder, 0, 0, "01. #0", STYLE);
+        draw_text(&mut fb_placeholder, ox, oy, "01. #0", STYLE);
         assert_ne!(fb_word.buf, fb_placeholder.buf, "draw_word must not render a numeric placeholder");
     }
 

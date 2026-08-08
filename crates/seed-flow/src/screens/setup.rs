@@ -43,6 +43,7 @@ use seed_protocol::state::EntropyMode;
 use crate::chrome::{content_top, draw_footer, draw_header, Chrome, KeyHint};
 use crate::diagnostics::{DiagRecap, SecureBootStatus};
 use crate::entropy_avail::ModeAvailability;
+use crate::flow_secret::machine::MachineExtras;
 use crate::flow_secret::physical::Instrument;
 use crate::keys::MenuKey;
 use crate::output::LineBuf;
@@ -63,6 +64,12 @@ const ROW_MODE: u8 = 1;
 /// 0-based index of the physical-instrument row — inert unless
 /// [`is_physical`] is true for the current mode.
 const ROW_INSTRUMENT: u8 = 2;
+/// 0-based index of the §22.5b machine-extras row (SPEC_TPM_ENTROPY.md
+/// §11a) — present only when at least one optional source is offerable
+/// ([`ModeAvailability::extras`]) AND the current mode uses machine
+/// sources at all; with zero offerable extras the row does not exist
+/// (never a greyed promise).
+const ROW_EXTRAS: u8 = 3;
 
 /// This screen's entire mutable state (design doc §4 Stage 3: "Three
 /// stacked pickers on one screen"). Every field is `pub` — like every
@@ -80,15 +87,25 @@ pub struct SetupState {
     /// SPEC §22.5a physical-instrument choice. Presentation only when
     /// `mode` is not physical (inert row).
     pub instrument: Instrument,
+    /// §22.5b optional-source opt-ins (SPEC_TPM_ENTROPY.md §11a). Every
+    /// flag defaults OFF; only flags whose source is offerable
+    /// ([`ModeAvailability::extras`]) are togglable or committed.
+    pub extras: MachineExtras,
 }
 
 impl SetupState {
     /// A fresh screen: word count row active, 12 words, `Combined` mode
     /// (the SPEC §22.5 "Recommended" option), the compatibility-default
-    /// instrument.
+    /// instrument, every §22.5b extra OFF (opt-in).
     #[must_use]
     pub fn new() -> Self {
-        Self { row: ROW_WORDS, words24: false, mode: EntropyMode::Combined, instrument: Instrument::default() }
+        Self {
+            row: ROW_WORDS,
+            words24: false,
+            mode: EntropyMode::Combined,
+            instrument: Instrument::default(),
+            extras: MachineExtras::default(),
+        }
     }
 
     /// Feed one keystroke. `avail` is the current [`ModeAvailability`]
@@ -110,17 +127,18 @@ impl SetupState {
                         words24: self.words24,
                         mode: self.mode,
                         instrument: self.instrument,
+                        extras: effective_extras(self.extras, self.mode, avail),
                     })
                 } else {
                     None
                 }
             }
             MenuKey::Char(c) if c.eq_ignore_ascii_case(&'w') => {
-                self.row = prev_row(self.row, self.mode);
+                self.row = prev_row(self.row, self.mode, avail);
                 None
             }
             MenuKey::Char(c) if c.eq_ignore_ascii_case(&'s') => {
-                self.row = next_row(self.row, self.mode);
+                self.row = next_row(self.row, self.mode, avail);
                 None
             }
             MenuKey::Char(c) if c.eq_ignore_ascii_case(&'a') => {
@@ -140,13 +158,22 @@ impl SetupState {
     }
 
     /// `[A]`/`[D]`: cycle the active row's own options, wrapping, and (for
-    /// the mode row) skipping unavailable modes.
+    /// the mode row) skipping unavailable modes. On the extras row both
+    /// directions toggle the first offerable extra (a toggle has no
+    /// direction; digits address individual extras, [`Self::direct_select`]).
     fn cycle_active(&mut self, avail: &ModeAvailability, forward: bool) {
         match self.row {
             ROW_WORDS => self.words24 = !self.words24,
             ROW_MODE => self.mode = cycle_mode(self.mode, avail, forward),
             ROW_INSTRUMENT if is_physical(self.mode) => {
                 self.instrument = cycle_instrument(self.instrument, forward);
+            }
+            ROW_EXTRAS if extras_row_active(self.mode, avail) => {
+                if avail.extras.tpm {
+                    self.extras.tpm = !self.extras.tpm;
+                } else if avail.extras.usb_trng {
+                    self.extras.usb_trng = !self.extras.usb_trng;
+                }
             }
             _ => {}
         }
@@ -188,8 +215,41 @@ impl SetupState {
                     self.instrument = i;
                 }
             }
+            ROW_EXTRAS if extras_row_active(self.mode, avail) => {
+                // `[1]`/`[2]` toggle the nth OFFERABLE extra, in the
+                // fixed TPM-then-USB order the row renders in.
+                let mut n = 0u8;
+                if avail.extras.tpm {
+                    n += 1;
+                    if c == char::from(b'0' + n) {
+                        self.extras.tpm = !self.extras.tpm;
+                        return;
+                    }
+                }
+                if avail.extras.usb_trng {
+                    n += 1;
+                    if c == char::from(b'0' + n) {
+                        self.extras.usb_trng = !self.extras.usb_trng;
+                    }
+                }
+            }
             _ => {}
         }
+    }
+}
+
+/// The extras this commit actually carries (SPEC_TPM_ENTROPY.md §11a):
+/// each opt-in is masked to sources that are still offerable, and a mode
+/// that samples no machine sources at all (`DiceOnly`) always commits
+/// all-OFF — a stale toggle from an earlier mode choice must never leak a
+/// machine probe into a physical-only ceremony.
+fn effective_extras(chosen: MachineExtras, mode: EntropyMode, avail: &ModeAvailability) -> MachineExtras {
+    if !uses_machine_sources(mode) {
+        return MachineExtras::default();
+    }
+    MachineExtras {
+        tpm: chosen.tpm && avail.extras.tpm,
+        usb_trng: chosen.usb_trng && avail.extras.usb_trng,
     }
 }
 
@@ -206,8 +266,10 @@ pub enum SetupOutcome {
     /// the caller to fold into `Event::SetupCommitted { word_count,
     /// mode, instrument }` (SPEC §22.4/§22.5/§22.5a — `word_count` is a
     /// `seed_core::contracts::WordCount`, not this screen's own concern:
-    /// the caller converts `words24` at the call site).
-    Committed { words24: bool, mode: EntropyMode, instrument: Instrument },
+    /// the caller converts `words24` at the call site). `extras` is the
+    /// §22.5b opt-in set, already masked by [`effective_extras`] — the
+    /// caller hands it to `MachineSourceGate::acquire` untouched.
+    Committed { words24: bool, mode: EntropyMode, instrument: Instrument, extras: MachineExtras },
     /// `[Esc]`.
     Back,
 }
@@ -221,6 +283,19 @@ pub enum SetupOutcome {
 /// row-navigation — when this is true.
 fn is_physical(mode: EntropyMode) -> bool {
     matches!(mode, EntropyMode::Combined | EntropyMode::DiceOnly)
+}
+
+/// Does `mode` sample machine sources at all (SPEC §18.1 modes 1 and 3)?
+/// The §22.5b extras row is only meaningful when this is true — a
+/// physical-only ceremony samples nothing an extra could add to.
+fn uses_machine_sources(mode: EntropyMode) -> bool {
+    matches!(mode, EntropyMode::Combined | EntropyMode::MachineOnly)
+}
+
+/// Whether the §22.5b extras row exists and is live: at least one extra
+/// offerable AND the mode machine-using (SPEC_TPM_ENTROPY.md §11a).
+fn extras_row_active(mode: EntropyMode, avail: &ModeAvailability) -> bool {
+    uses_machine_sources(mode) && !avail.extras.is_empty()
 }
 
 /// This mode's [`ModeAvailability`] result, mirroring
@@ -274,28 +349,45 @@ fn cycle_instrument(current: Instrument, forward: bool) -> Instrument {
     order[idx]
 }
 
-/// The rows navigable for `mode`: all three when physical, just the two
-/// non-instrument rows otherwise (the instrument row is inert).
-fn valid_rows(mode: EntropyMode) -> &'static [u8] {
-    if is_physical(mode) {
-        &[ROW_WORDS, ROW_MODE, ROW_INSTRUMENT]
-    } else {
-        &[ROW_WORDS, ROW_MODE]
+/// The rows navigable for `mode`, in a fixed buffer (`n` slots used):
+/// words and mode always; the instrument row when physical; the §22.5b
+/// extras row when [`extras_row_active`].
+fn valid_rows(mode: EntropyMode, avail: &ModeAvailability) -> ([u8; 4], usize) {
+    let mut rows = [0u8; 4];
+    let mut n = 0;
+    rows[n] = ROW_WORDS;
+    n += 1;
+    rows[n] = ROW_MODE;
+    n += 1;
+    // Directly after the mode row (user decision 2026-08-09): the extras
+    // are machine-entropy sub-options, so they navigate — and render —
+    // inside the machine-entropy part of the screen, not after the
+    // instrument row.
+    if extras_row_active(mode, avail) {
+        rows[n] = ROW_EXTRAS;
+        n += 1;
     }
+    if is_physical(mode) {
+        rows[n] = ROW_INSTRUMENT;
+        n += 1;
+    }
+    (rows, n)
 }
 
-/// `[S]`: the next valid row after `current`, wrapping and skipping the
-/// instrument row when it is inert.
-fn next_row(current: u8, mode: EntropyMode) -> u8 {
-    let valid = valid_rows(mode);
+/// `[S]`: the next valid row after `current`, wrapping and skipping
+/// inert rows.
+fn next_row(current: u8, mode: EntropyMode, avail: &ModeAvailability) -> u8 {
+    let (rows, n) = valid_rows(mode, avail);
+    let valid = &rows[..n];
     let idx = valid.iter().position(|&r| r == current).unwrap_or(0);
     valid[(idx + 1) % valid.len()]
 }
 
 /// `[W]`: the previous valid row before `current`, wrapping and skipping
-/// the instrument row when it is inert.
-fn prev_row(current: u8, mode: EntropyMode) -> u8 {
-    let valid = valid_rows(mode);
+/// inert rows.
+fn prev_row(current: u8, mode: EntropyMode, avail: &ModeAvailability) -> u8 {
+    let (rows, n) = valid_rows(mode, avail);
+    let valid = &rows[..n];
     let idx = valid.iter().position(|&r| r == current).unwrap_or(0);
     valid[(idx + valid.len() - 1) % valid.len()]
 }
@@ -383,12 +475,27 @@ fn disabled_mode_reasons(avail: &ModeAvailability) -> ([&'static str; 2], usize)
 /// crate (see e.g. `screens::verify`'s module doc comment), the embedded
 /// font only covers ASCII `0x20..=0x7E`, so a non-ASCII glyph would
 /// render as a blank cell.
-fn build_summary_line(words24: bool, mode: EntropyMode, instrument: Instrument) -> LineBuf {
+fn build_summary_line(
+    words24: bool,
+    mode: EntropyMode,
+    instrument: Instrument,
+    extras: MachineExtras,
+    avail: &ModeAvailability,
+) -> LineBuf {
     let mut buf = LineBuf::new();
     let words = if words24 { 24 } else { 12 };
     let _ = write!(buf, "Your setup:  {words} words - {}", mode_label(mode));
     if is_physical(mode) {
         let _ = write!(buf, " - {}", instrument_label(instrument));
+    }
+    // §22.5b: recap exactly what would be committed — the masked set,
+    // never a stale toggle (SPEC_TPM_ENTROPY.md §11a).
+    let effective = effective_extras(extras, mode, avail);
+    if effective.tpm {
+        let _ = write!(buf, " + TPM");
+    }
+    if effective.usb_trng {
+        let _ = write!(buf, " + USB TRNG");
     }
     buf
 }
@@ -401,13 +508,18 @@ fn build_summary_line(words24: bool, mode: EntropyMode, instrument: Instrument) 
 /// did not already show.
 fn recap_lines(recap: &DiagRecap) -> [LineBuf; 2] {
     let mut l1 = LineBuf::new();
+    // "TPM {status}" lives on this (shorter) line: the SPEC §22.3 recap
+    // must fit the 800x600 floor (`output::screens_fit_audit`), and line 2
+    // is already near the right margin. Status labels are deliberately
+    // compact (SPEC_TPM_ENTROPY.md §7.1 probe stages).
     let _ = write!(
         l1,
-        "Diagnostics: Architecture {}   Console {} in / {} out   Secure Boot {}",
+        "Diagnostics: Architecture {}   Console {} in / {} out   Secure Boot {}   TPM {}",
         recap.architecture_line,
         recap.con_in_paths,
         recap.con_out_paths,
         secure_boot_label(recap.secure_boot),
+        recap.tpm_status,
     );
 
     let mut l2 = LineBuf::new();
@@ -530,6 +642,39 @@ pub fn render(fb: &mut dyn Framebuffer, st: &SetupState, avail: &ModeAvailabilit
     draw_picker_row(fb, y, st.row == ROW_MODE, false, "Entropy mode", &mode_options, mode_idx(st.mode));
     y += LINE_PITCH;
 
+    // §22.5b extras row (SPEC_TPM_ENTROPY.md §11a), drawn DIRECTLY under
+    // the mode row (user decision 2026-08-09: these are machine-entropy
+    // sub-options, so they live inside the machine-entropy part of the
+    // screen). Rendered ONLY when at least one optional source is
+    // offerable — zero offerable extras means no row at all, not a
+    // dimmed one. Dimmed (like the inert instrument row) when the mode
+    // samples no machine sources. Each offerable extra renders as one
+    // toggle option showing its own state; the "selected" highlight
+    // follows the ON state.
+    if !avail.extras.is_empty() {
+        let extras_dim = !uses_machine_sources(st.mode);
+        let mut options: [(&str, bool); 2] = [("", true); 2];
+        let mut selected = usize::MAX;
+        let mut n = 0usize;
+        if avail.extras.tpm {
+            options[n] = (if st.extras.tpm { "Add TPM entropy: ON" } else { "Add TPM entropy: off" }, true);
+            if st.extras.tpm {
+                selected = n;
+            }
+            n += 1;
+        }
+        if avail.extras.usb_trng {
+            options[n] =
+                (if st.extras.usb_trng { "Add USB TRNG: ON" } else { "Add USB TRNG: off" }, true);
+            if st.extras.usb_trng && selected == usize::MAX {
+                selected = n;
+            }
+            n += 1;
+        }
+        draw_picker_row(fb, y, st.row == ROW_EXTRAS, extras_dim, "Machine extras", &options[..n], selected);
+        y += LINE_PITCH;
+    }
+
     let (reasons, reason_n) = disabled_mode_reasons(avail);
     for reason in &reasons[..reason_n] {
         draw_text(fb, MARGIN_X + 2 * GLYPH_WIDTH, y, reason, theme::on_bg(theme::CAPTION));
@@ -566,7 +711,7 @@ pub fn render(fb: &mut dyn Framebuffer, st: &SetupState, avail: &ModeAvailabilit
     }
     y += LINE_PITCH / 2;
 
-    let summary = build_summary_line(st.words24, st.mode, st.instrument);
+    let summary = build_summary_line(st.words24, st.mode, st.instrument, st.extras, avail);
     draw_text(fb, MARGIN_X, y, summary.as_str(), theme::on_bg(theme::TEXT));
 
     let committable = mode_result(avail, st.mode).is_ok();
@@ -628,11 +773,11 @@ mod tests {
     const BUILD: &str = "test-build";
 
     fn all_available() -> ModeAvailability {
-        ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Ok(()) }
+        ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Ok(()), extras: Default::default() }
     }
 
     fn machine_only_unavailable() -> ModeAvailability {
-        ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Err("no sole source") }
+        ModeAvailability { combined: Ok(()), dice_only: Ok(()), machine_only: Err("no sole source"), extras: Default::default() }
     }
 
     fn sample_recap() -> DiagRecap {
@@ -644,6 +789,7 @@ mod tests {
             entropy_policy_version: Some(3),
             production_markers_verified: true,
             crypto_clean: true,
+            tpm_status: "detected",
         }
     }
 
@@ -667,9 +813,135 @@ mod tests {
         assert_eq!(st.handle_key(MenuKey::Escape, &all_available()), Some(SetupOutcome::Back));
     }
 
+    // -- §22.5b extras row (SPEC_TPM_ENTROPY.md §11a) ---------------------
+
+    fn avail_with_tpm() -> ModeAvailability {
+        ModeAvailability {
+            combined: Ok(()),
+            dice_only: Ok(()),
+            machine_only: Ok(()),
+            extras: crate::entropy_avail::ExtrasAvailability { tpm: true, usb_trng: false },
+        }
+    }
+
+    /// With zero offerable extras, `[S]` from the instrument row wraps
+    /// straight back to words: `ROW_EXTRAS` does not exist (§11a: no row,
+    /// not a dimmed row).
+    #[test]
+    fn extras_row_is_unreachable_when_no_extra_is_offerable() {
+        let mut st = SetupState::new();
+        st.row = ROW_INSTRUMENT;
+        st.handle_key(MenuKey::Char('s'), &all_available());
+        assert_eq!(st.row, ROW_WORDS);
+    }
+
+    /// With TPM offerable and a machine-using mode, `[S]` from the mode
+    /// row reaches the extras row DIRECTLY (user decision 2026-08-09:
+    /// extras nest inside the machine-entropy part, before the
+    /// instrument row) and `[A]`/`[D]`/`[1]` toggle the opt-in
+    /// (default OFF).
+    #[test]
+    fn extras_row_reachable_and_toggles_tpm_when_offerable() {
+        let avail = avail_with_tpm();
+        let mut st = SetupState::new();
+        assert!(!st.extras.tpm, "opt-in MUST default OFF");
+        st.row = ROW_MODE;
+        st.handle_key(MenuKey::Char('s'), &avail);
+        assert_eq!(st.row, ROW_EXTRAS);
+        st.handle_key(MenuKey::Char('s'), &avail);
+        assert_eq!(st.row, ROW_INSTRUMENT, "instrument row follows the extras row");
+        st.row = ROW_EXTRAS;
+        st.handle_key(MenuKey::Char('d'), &avail);
+        assert!(st.extras.tpm);
+        st.handle_key(MenuKey::Char('a'), &avail);
+        assert!(!st.extras.tpm);
+        st.handle_key(MenuKey::Char('1'), &avail);
+        assert!(st.extras.tpm);
+    }
+
+    /// The committed outcome carries the toggled extras for a
+    /// machine-using mode.
+    #[test]
+    fn commit_carries_toggled_extras_for_combined_mode() {
+        let avail = avail_with_tpm();
+        let mut st = SetupState::new();
+        st.extras.tpm = true;
+        let outcome = st.handle_key(MenuKey::Enter, &avail);
+        assert_eq!(
+            outcome,
+            Some(SetupOutcome::Committed {
+                words24: false,
+                mode: EntropyMode::Combined,
+                instrument: Instrument::Both,
+                extras: MachineExtras { tpm: true, usb_trng: false },
+            })
+        );
+    }
+
+    /// §11a: a `DiceOnly` commit always carries all-OFF extras — a stale
+    /// toggle from an earlier mode choice must never leak a machine probe
+    /// into a physical-only ceremony.
+    #[test]
+    fn dice_only_commit_masks_extras_to_all_off() {
+        let avail = avail_with_tpm();
+        let mut st = SetupState::new();
+        st.extras.tpm = true;
+        st.mode = EntropyMode::DiceOnly;
+        let outcome = st.handle_key(MenuKey::Enter, &avail);
+        assert_eq!(
+            outcome,
+            Some(SetupOutcome::Committed {
+                words24: false,
+                mode: EntropyMode::DiceOnly,
+                instrument: Instrument::Both,
+                extras: MachineExtras::default(),
+            })
+        );
+    }
+
+    /// A toggle whose source is no longer offerable is masked out of the
+    /// commit (availability is live, §11a).
+    #[test]
+    fn commit_masks_extras_no_longer_offerable() {
+        let mut st = SetupState::new();
+        st.extras.tpm = true;
+        let outcome = st.handle_key(MenuKey::Enter, &all_available());
+        assert_eq!(
+            outcome,
+            Some(SetupOutcome::Committed {
+                words24: false,
+                mode: EntropyMode::Combined,
+                instrument: Instrument::Both,
+                extras: MachineExtras::default(),
+            })
+        );
+    }
+
+    /// The summary line appends " + TPM" exactly when the effective
+    /// (masked) extras include it.
+    #[test]
+    fn summary_line_reflects_effective_tpm_extra() {
+        let with = build_summary_line(
+            false,
+            EntropyMode::Combined,
+            Instrument::Both,
+            MachineExtras { tpm: true, usb_trng: false },
+            &avail_with_tpm(),
+        );
+        assert_eq!(with.as_str(), "Your setup:  12 words - Combined - Both + TPM");
+        let masked = build_summary_line(
+            false,
+            EntropyMode::Combined,
+            Instrument::Both,
+            MachineExtras { tpm: true, usb_trng: false },
+            &all_available(),
+        );
+        assert_eq!(masked.as_str(), "Your setup:  12 words - Combined - Both");
+    }
+
     #[test]
     fn enter_commits_the_assembled_setup_when_mode_available() {
-        let mut st = SetupState { row: ROW_MODE, words24: true, mode: EntropyMode::DiceOnly, instrument: Instrument::Dice };
+        let mut st = SetupState { row: ROW_MODE, words24: true, mode: EntropyMode::DiceOnly, instrument: Instrument::Dice, extras: MachineExtras::default() };
         let outcome = st.handle_key(MenuKey::Enter, &all_available());
         assert_eq!(
             outcome,
@@ -677,6 +949,7 @@ mod tests {
                 words24: true,
                 mode: EntropyMode::DiceOnly,
                 instrument: Instrument::Dice,
+                extras: MachineExtras::default(),
             })
         );
     }
@@ -697,21 +970,21 @@ mod tests {
 
     #[test]
     fn down_skips_the_inert_instrument_row_for_machine_only() {
-        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both, extras: MachineExtras::default() };
         assert_eq!(st.handle_key(MenuKey::Char('s'), &all_available()), None);
         assert_eq!(st.row, ROW_WORDS, "Down from the mode row must skip the inert instrument row");
     }
 
     #[test]
     fn up_skips_the_inert_instrument_row_for_machine_only() {
-        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both, extras: MachineExtras::default() };
         assert_eq!(st.handle_key(MenuKey::Char('W'), &all_available()), None);
         assert_eq!(st.row, ROW_MODE, "Up from the word-count row must skip the inert instrument row");
     }
 
     #[test]
     fn instrument_row_is_reachable_and_wraps_for_a_physical_mode() {
-        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both, extras: MachineExtras::default() };
         assert_eq!(st.handle_key(MenuKey::Char('s'), &all_available()), None);
         assert_eq!(st.row, ROW_INSTRUMENT);
         assert_eq!(st.handle_key(MenuKey::Char('s'), &all_available()), None);
@@ -722,7 +995,7 @@ mod tests {
 
     #[test]
     fn left_right_wraps_the_word_count_row() {
-        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both, extras: MachineExtras::default() };
         st.handle_key(MenuKey::Char('d'), &all_available());
         assert!(st.words24);
         st.handle_key(MenuKey::Char('d'), &all_available());
@@ -733,7 +1006,7 @@ mod tests {
 
     #[test]
     fn left_right_on_the_mode_row_skips_unavailable_modes_and_wraps() {
-        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both, extras: MachineExtras::default() };
         let avail = machine_only_unavailable();
         st.handle_key(MenuKey::Char('d'), &avail);
         assert_eq!(st.mode, EntropyMode::DiceOnly);
@@ -743,7 +1016,7 @@ mod tests {
 
     #[test]
     fn left_right_wraps_the_instrument_row() {
-        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Dice };
+        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Dice, extras: MachineExtras::default() };
         st.handle_key(MenuKey::Char('d'), &all_available());
         assert_eq!(st.instrument, Instrument::Coins);
         st.handle_key(MenuKey::Char('d'), &all_available());
@@ -756,7 +1029,7 @@ mod tests {
 
     #[test]
     fn cycling_the_instrument_row_is_a_no_op_when_mode_is_not_physical() {
-        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Dice };
+        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Dice, extras: MachineExtras::default() };
         st.handle_key(MenuKey::Char('d'), &all_available());
         assert_eq!(st.instrument, Instrument::Dice, "instrument row is inert for MachineOnly");
     }
@@ -765,7 +1038,7 @@ mod tests {
 
     #[test]
     fn digits_direct_select_on_the_word_count_row() {
-        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both, extras: MachineExtras::default() };
         st.handle_key(MenuKey::Char('2'), &all_available());
         assert!(st.words24);
         st.handle_key(MenuKey::Char('1'), &all_available());
@@ -774,7 +1047,7 @@ mod tests {
 
     #[test]
     fn digits_direct_select_on_the_mode_row_ignore_unavailable() {
-        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_MODE, words24: false, mode: EntropyMode::Combined, instrument: Instrument::Both, extras: MachineExtras::default() };
         let avail = machine_only_unavailable();
         st.handle_key(MenuKey::Char('3'), &avail);
         assert_eq!(st.mode, EntropyMode::Combined, "digit 3 (MachineOnly) must be ignored while unavailable");
@@ -784,7 +1057,7 @@ mod tests {
 
     #[test]
     fn digits_direct_select_on_the_instrument_row() {
-        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::DiceOnly, instrument: Instrument::Both };
+        let mut st = SetupState { row: ROW_INSTRUMENT, words24: false, mode: EntropyMode::DiceOnly, instrument: Instrument::Both, extras: MachineExtras::default() };
         st.handle_key(MenuKey::Char('1'), &all_available());
         assert_eq!(st.instrument, Instrument::Dice);
         st.handle_key(MenuKey::Char('2'), &all_available());
@@ -829,19 +1102,19 @@ mod tests {
 
     #[test]
     fn summary_line_includes_instrument_for_a_physical_mode() {
-        let line = build_summary_line(false, EntropyMode::Combined, Instrument::Both);
+        let line = build_summary_line(false, EntropyMode::Combined, Instrument::Both, MachineExtras::default(), &all_available());
         assert_eq!(line.as_str(), "Your setup:  12 words - Combined - Both");
     }
 
     #[test]
     fn summary_line_omits_instrument_for_machine_only() {
-        let line = build_summary_line(true, EntropyMode::MachineOnly, Instrument::Both);
+        let line = build_summary_line(true, EntropyMode::MachineOnly, Instrument::Both, MachineExtras::default(), &all_available());
         assert_eq!(line.as_str(), "Your setup:  24 words - Machine only");
     }
 
     #[test]
     fn summary_line_reflects_dice_only_and_words() {
-        let line = build_summary_line(false, EntropyMode::DiceOnly, Instrument::Dice);
+        let line = build_summary_line(false, EntropyMode::DiceOnly, Instrument::Dice, MachineExtras::default(), &all_available());
         assert_eq!(line.as_str(), "Your setup:  12 words - Dice only - Dice");
     }
 
@@ -873,7 +1146,7 @@ mod tests {
     fn render_every_mode_does_not_panic() {
         for mode in [EntropyMode::Combined, EntropyMode::DiceOnly, EntropyMode::MachineOnly] {
             let mut fb = VecFb::new(MIN_WIDTH, MIN_HEIGHT);
-            let st = SetupState { row: ROW_MODE, words24: false, mode, instrument: Instrument::Both };
+            let st = SetupState { row: ROW_MODE, words24: false, mode, instrument: Instrument::Both, extras: MachineExtras::default() };
             render(&mut fb, &st, &machine_only_unavailable(), &sample_recap(), BUILD);
         }
     }
@@ -881,7 +1154,7 @@ mod tests {
     #[test]
     fn render_shows_accent_dim_for_the_inert_instrument_row() {
         let mut fb = VecFb::new(MIN_WIDTH, MIN_HEIGHT);
-        let st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both };
+        let st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both, extras: MachineExtras::default() };
         render(&mut fb, &st, &all_available(), &sample_recap(), BUILD);
         assert!(fb.contains(theme::ACCENT_DIM), "inert instrument row must render dimmed");
     }
@@ -896,7 +1169,7 @@ mod tests {
     #[test]
     fn render_disabled_enter_hint_uses_accent_dim() {
         let mut fb = VecFb::new(MIN_WIDTH, MIN_HEIGHT);
-        let st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both };
+        let st = SetupState { row: ROW_WORDS, words24: false, mode: EntropyMode::MachineOnly, instrument: Instrument::Both, extras: MachineExtras::default() };
         render(&mut fb, &st, &machine_only_unavailable(), &sample_recap(), BUILD);
         assert!(fb.contains(theme::ACCENT_DIM), "Enter hint must render dimmed while the mode is unavailable");
     }

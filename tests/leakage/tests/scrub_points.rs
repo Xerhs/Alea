@@ -177,7 +177,7 @@ fn run_full_ceremony_and_check_every_scrub_point(vector_file: &str) {
 
     // ---- Mnemonic display (SPEC §22.7) then DisplayScrub (SPEC §12.4) ----
     let mut fb = VecFb::new(1024, 768);
-    display::render_mnemonic_display(&mut fb, arena.mnemonic_indexes(), n);
+    display::render_mnemonic_display(&mut fb, arena.mnemonic_indexes(), n, "leakage-test");
     assert!(
         fb.contains_pixel(display::WORD_STYLE.fg),
         "{}: sanity check failed -- the public mnemonic must actually have been drawn before the scrub is meaningful",
@@ -196,7 +196,7 @@ fn run_full_ceremony_and_check_every_scrub_point(vector_file: &str) {
     for i in 0..n {
         let prefix = prefix_for_word(&case.mnemonic_words[i]);
         let mut keys = support::ScriptedKeys::new(support::ScriptedKeys::word_entry(prefix));
-        let outcome = reentry::read_and_check_one_word(&mut fb, &mut keys, i, n, &arena.mnemonic_indexes()[i]);
+        let outcome = reentry::read_and_check_one_word(&mut fb, &mut keys, i, n, &arena.mnemonic_indexes()[i], "leakage-test");
         assert_eq!(outcome, reentry::ReentryOutcome::Matched, "{}: re-entry word {i} ({prefix:?}) must match", case.name);
         // Re-entry's own prompt screen must never contain the mnemonic
         // word's rendered glyphs (SPEC §12.3: no echo) -- reusing the
@@ -237,11 +237,11 @@ fn assert_reentry_screen_is_word_independent() {
     // Use a bogus expected index (0) -- outcome (match/mismatch) is
     // irrelevant to this check; only the rendered pixels matter, and
     // `read_and_check_one_word` renders before it ever compares.
-    let _ = reentry::read_and_check_one_word(&mut fb_a, &mut keys_a, 0, 12, &0);
+    let _ = reentry::read_and_check_one_word(&mut fb_a, &mut keys_a, 0, 12, &0, "leakage-test");
 
     let mut fb_b = VecFb::new(640, 480);
     let mut keys_b = support::ScriptedKeys::new(support::ScriptedKeys::word_entry(&word_b[..4]));
-    let _ = reentry::read_and_check_one_word(&mut fb_b, &mut keys_b, 0, 12, &0);
+    let _ = reentry::read_and_check_one_word(&mut fb_b, &mut keys_b, 0, 12, &0, "leakage-test");
 
     assert_eq!(fb_a.buf, fb_b.buf, "hidden-entry screen must be identical regardless of which real secret word was typed");
 }
