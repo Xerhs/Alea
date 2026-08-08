@@ -1,0 +1,213 @@
+# tests/qemu/scripts/production-happy-path.keys
+#
+# The full redesigned ceremony, production edition, driven from the SPEC_MAIN_MENU
+# landing launcher through to shutdown, with a screenshot at every stage.
+# Replaces `pre-secret-happy-path.keys`, which scripted the three separate
+# acknowledgement screens the 2026-08-07 ceremony redesign merged away and whose
+# serial `EXPECT` assertions have had nothing to match since the 2026-08-06 GOP
+# amendment (commit 9625405) moved every screen onto the framebuffer.
+#
+# ⚠ THIS SCRIPT CANNOT COMPLETE UNDER QEMU, BY DESIGN. SPEC §11.2 requires that
+# detected virtualization disable generation, and QEMU+OVMF trips several
+# `seed_platform_x86::virt` indicators, so Stage 2's mandatory gates fail closed
+# ("CANNOT CONTINUE / Virtualization indicators were detected on this platform")
+# and everything from `04-stage2-device` on captures that refusal screen instead.
+# That refusal is CORRECT behavior and is asserted by
+# `production-launcher-and-gates.keys`. This file is kept as the reference
+# keystream for the SPEC §29.4 real-hardware pass — the exact sequence a human
+# types on a bare-metal machine — and for any future harness that runs on
+# hardware. Do not "fix" it by defeating the §11.2 gate.
+#
+# Entropy is the FROZEN vector `tests/vectors/frozen/dice_only_24w_min_budget.json`
+# (100 dice rolls, 1..6 repeating, min budget for 256 bits). That is what makes
+# the hidden re-entry scriptable at all: the derivation pipeline is deterministic
+# in the physical events, so this run's 24 words are the frozen case's 24 words
+# and their four-letter prefixes can be typed blind. Nothing about the edition is
+# special-cased — the production binary derives the frozen mnemonic because the
+# entropy it is given is the frozen entropy.
+#
+# Run:
+#   tests/qemu/drive-ceremony.py --image dist/.../alea-x86_64-usb.img \
+#       --script tests/qemu/scripts/production-happy-path.keys --out <dir>
+
+DELAY 90
+
+ECHO landing launcher (SPEC_MAIN_MENU 6 items)
+SHOT 01-landing-menu
+
+ECHO [1] Generate -> Stage 1 PREPARE
+KEY 1
+WAIT 1.5
+SHOT 02-stage1-prepare-empty
+
+ECHO Stage 1: tick the three checklist items
+KEY 1 2 3
+WAIT 1
+SHOT 03-stage1-prepare-checked
+
+ECHO Stage 1: [Enter] -> mandatory gates -> Stage 2 DEVICE
+KEY ENTER
+WAIT 4
+SHOT 04-stage2-device
+
+ECHO Stage 2: [S] arms the skip acknowledgement (SPEC 11.4/11.5)
+KEY s
+WAIT 1
+SHOT 05-stage2-skip-armed
+
+ECHO Stage 2: [S] again confirms the skip -> Stage 3 SETUP
+KEY s
+WAIT 2
+SHOT 06-stage3-setup-default
+
+ECHO Stage 3: [2] = 24 words on the active word-count row
+KEY 2
+WAIT 0.6
+ECHO Stage 3: [S] moves to the entropy-mode row, [2] = Dice only
+KEY s
+WAIT 0.6
+KEY 2
+WAIT 1
+SHOT 07-stage3-setup-24w-dice
+
+ECHO Stage 3: [Enter] commits -> Stage 4 ENTROPY
+KEY ENTER
+WAIT 2
+SHOT 08-stage4-entropy-empty
+
+ECHO Stage 4: the frozen vector's 100 dice rolls
+DELAY 60
+TYPE 1234561234561234561234561234561234561234561234561234561234561234561234561234561234561234561234561234
+DELAY 90
+WAIT 1.5
+SHOT 09-stage4-entropy-budget-met
+
+ECHO Stage 4: [Enter] proceeds -> Stage 5 GENERATE
+KEY ENTER
+WAIT 2
+SHOT 10-stage5-generate
+
+ECHO Stage 5: [G] is the only arming key ([Enter] is deliberately inert)
+KEY g
+WAIT 6
+SHOT 11-stage6-mnemonic
+
+ECHO Stage 6: [H] hides the phrase and begins the complete hidden re-entry
+KEY h
+WAIT 2
+SHOT 12-reentry-word01
+
+ECHO Stage 6: type each word's identifying four-letter prefix + Enter
+DELAY 70
+TYPE inqu
+KEY ENTER
+TYPE frin
+KEY ENTER
+TYPE dent
+KEY ENTER
+TYPE ente
+KEY ENTER
+TYPE skat
+KEY ENTER
+TYPE erod
+KEY ENTER
+TYPE enve
+KEY ENTER
+TYPE fini
+KEY ENTER
+SHOT 13-reentry-word09
+TYPE oyst
+KEY ENTER
+TYPE mist
+KEY ENTER
+TYPE laye
+KEY ENTER
+TYPE logi
+KEY ENTER
+TYPE grac
+KEY ENTER
+TYPE cook
+KEY ENTER
+TYPE lab
+KEY ENTER
+TYPE cora
+KEY ENTER
+SHOT 14-reentry-word17
+TYPE mom
+KEY ENTER
+TYPE dog
+KEY ENTER
+TYPE flui
+KEY ENTER
+TYPE groc
+KEY ENTER
+TYPE bulk
+KEY ENTER
+TYPE swam
+KEY ENTER
+TYPE dram
+KEY ENTER
+TYPE thro
+KEY ENTER
+DELAY 90
+WAIT 2
+SHOT 15-passphrase-offer
+
+ECHO Passphrase offer: [N] = empty passphrase
+KEY n
+WAIT 5
+SHOT 16-stage7-verify
+
+ECHO Stage 7 VERIFY: [V] reveals the addresses in place
+KEY v
+WAIT 2
+SHOT 17-stage7-verify-revealed
+
+ECHO Stage 7 VERIFY: [M] bounded derivation grid, [Enter] back
+KEY m
+WAIT 3
+SHOT 18-more-options-grid
+KEY ENTER
+WAIT 2
+
+ECHO Stage 7 VERIFY: [B] custom path builder, [Esc] back
+KEY b
+WAIT 3
+SHOT 19-custom-path-builder
+KEY ESC
+WAIT 2
+
+ECHO Stage 7 VERIFY: [X] export -> the opt-in export warning gate
+KEY x
+WAIT 2
+SHOT 20-export-warning
+
+ECHO Export warning: [Enter] proceeds to the export screen
+KEY ENTER
+WAIT 4
+SHOT 21-export-default
+
+ECHO Export: [3] BIP84 account xpub + descriptor + QR
+KEY 3
+WAIT 3
+SHOT 22-export-bip84
+
+ECHO Export: [5] BIP48 cosigner view
+KEY 5
+WAIT 3
+SHOT 23-export-cosigner
+
+ECHO Export: [Enter] back to Stage 7 VERIFY
+KEY ENTER
+WAIT 2
+SHOT 24-back-on-verify
+
+ECHO Stage 7 VERIFY: [Enter] Finish
+KEY ENTER
+WAIT 2
+SHOT 25-finish
+
+ECHO Finish: [Enter] scrub-and-shutdown
+KEY ENTER
+WAIT 6
+SHOT 26-after-shutdown

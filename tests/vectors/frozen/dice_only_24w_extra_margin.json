@@ -1,0 +1,80 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_24w_extra_margin",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010100000100080110000096030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102",
+      "final_entropy_hex": "5870f7338a1a12408d79052f9bbf1c459e50487cc0b6b8f9555ff1780747a94a",
+      "mnemonic_indexes": [
+        707,
+        1085,
+        1639,
+        161,
+        1289,
+        258,
+        431,
+        261,
+        380,
+        1775,
+        1592,
+        1113,
+        1832,
+        289,
+        1944,
+        182,
+        1479,
+        1621,
+        703,
+        1815,
+        1027,
+        1310,
+        1321,
+        762
+      ],
+      "mnemonic_words": [
+        "flash",
+        "marble",
+        "smooth",
+        "before",
+        "patrol",
+        "cake",
+        "curious",
+        "camera",
+        "convince",
+        "target",
+        "shove",
+        "menu",
+        "topic",
+        "category",
+        "vessel",
+        "bitter",
+        "rib",
+        "skirt",
+        "fitness",
+        "title",
+        "lesson",
+        "phrase",
+        "pioneer",
+        "gap"
+      ],
+      "bip39_seed_hex": "f646b3d6ba8b0ade2eb8bc350426d41ce09cdf1fafb66c567b1603eb0fe4c3420bb0a8ec3c9337a73641e3466a1c8751ced25930b229df10ec33b0c64b4d8b7c",
+      "master_fingerprint_hex": "7d1cd0db",
+      "addresses": {
+        "bip44": "19JViAjSPUKBvCTnXJ8saBkdpV7L6fk2so",
+        "bip49": "3CtSqDUmmGpvJcLY2wAUE6pGiZnQbhUVWR",
+        "bip84": "bc1qsf8dtwvg60kr4jzu4zpr89z8du2t3yl744mf4h",
+        "bip86": "bc1pct6y3x2jwpnyymmdtdug2kadezeggyt9asp82rsc4c9x369vdx9s9a9yds"
+      }
+    }
+  ]
+}

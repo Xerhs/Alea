@@ -1,0 +1,116 @@
+[package]
+name = "seed-flow"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# WP-25/26 (SPEC §22.1-22.5, §11, §8.4, §12, §17.4, §22.6-24, §26): pure,
+# host-testable pre-secret AND secret-phase UI flow logic, shared
+# verbatim by all three UI editions (`seed-uefi-production`,
+# `seed-uefi-test`, `seed-desktop-test`). This crate's *unconditional*
+# `[dependencies]` below have NO dependency on the `uefi` crate (see
+# lib.rs) — that is what makes `cargo test -p seed-flow` runnable on the
+# host (`x86_64-unknown-linux-musl`) without hitting the no_std-bin-crate
+# duplicate-lang-items problem the `#![no_main]` UEFI binary crates have.
+# The one `uefi` dependency this crate does carry (STEP B dedup: the
+# shared `firmware_wiring` module, see its own doc comment) is declared
+# under `[target.'cfg(target_os = "uefi")'.dependencies]` below, which
+# Cargo only resolves/builds when the *compilation target* matches that
+# `cfg` predicate — the host target never does, so `cargo test -p
+# seed-flow` still neither builds nor links `uefi`, exactly as before that
+# module existed.
+#
+# This crate lives at the workspace top level (`crates/seed-flow/`), a
+# sibling of every crate that depends on it — NOT nested inside any one
+# edition's own directory. It used to live at
+# `crates/seed-uefi-test/flow/`, which meant `seed-uefi-production`'s own
+# manifest carried a `path = "../seed-uefi-test/flow"` dependency: a
+# real, if today load-bearing-only-by-convention, landmine where the
+# *production* binary's build depended on a path physically inside the
+# *test* edition's own directory tree. Moving this crate out to a
+# top-level, edition-neutral location removes that landmine structurally
+# rather than merely documenting around it; the package is still named
+# `seed-flow` (unchanged) so every `use seed_flow::...` import in every
+# consumer crate is unaffected by the move. Each UEFI edition's own
+# `src/flow_pre/` and `src/flow_secret/` are now thin re-export/
+# constructor files over this crate's `firmware_wiring` module;
+# `seed-desktop-test` depends on this crate the same way it always has,
+# against its own desktop-window backend instead of firmware (that
+# edition is not UEFI, so it never touches `firmware_wiring`).
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-protocol = { path = "../seed-protocol" }
+seed-derive = { path = "../seed-derive" }
+seed-platform-x86 = { path = "../seed-platform-x86" }
+seed-gop-ui = { path = "../seed-gop-ui" }
+# `screens::export` encodes the (public) artifact it displays as a QR.
+# `seed-qr` is itself `no_std`, `alloc`-free and dependency-free.
+seed-qr = { path = "../seed-qr" }
+
+# STEP B dedup: the `firmware_wiring` module (see its own doc comment)
+# implements real UEFI provider traits and needs the real `uefi` crate,
+# plus `seed-gop-ui`'s real-GOP `gop::backend` submodule (behind that
+# crate's own `uefi-backend` feature -- see its `Cargo.toml`). Both
+# declared here, target-conditionally, rather than in each UEFI edition's
+# own manifest, because the module itself now lives in this crate. Cargo
+# unions this `seed-gop-ui` entry's `uefi-backend` feature with the
+# feature-less entry above only when building for a target actually
+# matching `cfg(target_os = "uefi")`; the host build above is unaffected
+# (`gop::backend` stays absent, exactly as it always has for this crate).
+#
+# STEP C dedup: `firmware_wiring::ProdCryptoSelfTestGate` is a thin
+# adapter over `seed-selftest` (see that crate's own doc comment for why
+# the SPEC §11.6 aggregate self-test lives there and not in
+# `seed_core::self_test`). Listed here rather than unconditionally
+# because `firmware_wiring` is this crate's only consumer of it and that
+# module is itself `target_os = "uefi"`-gated; `seed-selftest`'s own
+# thirteen KATs are still exercised directly by `cargo test -p
+# seed-selftest` regardless.
+[target.'cfg(target_os = "uefi")'.dependencies]
+uefi = { workspace = true }
+seed-gop-ui = { path = "../seed-gop-ui", features = ["uefi-backend"] }
+seed-selftest = { path = "../seed-selftest" }
+
+# WP-26 (SPEC §12, §17.4, §22.6-24, §26): `flow_secret`'s host tests
+# cross-check the secret-phase ceremony against the frozen golden vectors
+# (`tests/vectors/frozen/`). This is a dev-dependency only (never linked
+# into `x86_64-unknown-uefi` builds) — `flow_secret`'s own production
+# code defines its own `TranscriptSink`/`KeyDeriver` adapters (see
+# `flow_secret::derive`) rather than depending on `seed-test-vectors`,
+# because that crate must never appear in the production graph
+# (SPEC §9/§28).
+#
+# WP-27 confirms this isolation is structural, not a runtime flag: a
+# `[dev-dependencies]` entry is built by Cargo only for `cargo test`/
+# `cargo bench`/doctests *of this crate itself* — never for a downstream
+# crate (`seed-uefi-test`, `seed-uefi-production`) that merely lists
+# `seed-flow` as an ordinary `[dependencies]` entry. `cargo tree
+# -p seed-uefi-production --target x86_64-unknown-uefi` (see
+# `../../ci.sh`) therefore never shows `seed-test-vectors`, with no
+# feature required to suppress it.
+[dev-dependencies]
+seed-test-vectors = { path = "../seed-test-vectors" }
+
+# WP-27 (SPEC §4.1-4.2, §28): reserved for any *future* watermark /
+# "PUBLIC TEST PHRASE" / public-deterministic-vector-wiring code a later
+# change might fold directly into this shared `seed-flow` crate, instead
+# of each binary's own thin real-firmware provider-wiring layer as
+# everything is today (`crates/seed-uefi-test/src/{flow_pre,flow_secret}/`
+# vs. `crates/seed-uefi-production/src/{flow_pre,flow_secret}/` — see
+# both crates' own doc comments). Default OFF, and currently unused: no
+# item anywhere in this crate is gated on it, because no watermark/
+# public-vector code exists in this shared crate today (test/production
+# separation is achieved purely by the crate/binary boundary above).
+# `crates/seed-uefi-production/Cargo.toml` never enables this feature and
+# is not permitted to; any future WP that adds such code directly to this
+# crate MUST gate it with `#[cfg(feature = "test-edition")]` (a
+# structural, compiled-out absence — SPEC §28) rather than a runtime
+# `bool`. Adding this section changes no current behavior: it is not
+# referenced by `crates/seed-uefi-test`'s own `seed-flow` dependency
+# declaration (which stays feature-less, i.e. default-only), so the test
+# binary's compiled output is byte-for-byte unaffected by this section
+# existing.
+[features]
+default = []
+test-edition = []

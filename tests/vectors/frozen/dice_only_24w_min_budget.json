@@ -1,0 +1,80 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_24w_min_budget",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "01020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001010000010008011000006401020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304",
+      "final_entropy_hex": "74cba0ea25bca09912f2b89e71bdf941c6565f5f01818ec81166b361e1b6508f",
+      "mnemonic_indexes": [
+        934,
+        744,
+        468,
+        603,
+        1616,
+        612,
+        606,
+        696,
+        1267,
+        1135,
+        1010,
+        1052,
+        811,
+        381,
+        992,
+        385,
+        1142,
+        516,
+        717,
+        822,
+        240,
+        1753,
+        529,
+        1802
+      ],
+      "mnemonic_words": [
+        "inquiry",
+        "fringe",
+        "dentist",
+        "enter",
+        "skate",
+        "erode",
+        "envelope",
+        "finish",
+        "oyster",
+        "mistake",
+        "layer",
+        "logic",
+        "grace",
+        "cook",
+        "lab",
+        "coral",
+        "mom",
+        "dog",
+        "fluid",
+        "grocery",
+        "bulk",
+        "swamp",
+        "drama",
+        "throw"
+      ],
+      "bip39_seed_hex": "59a75901d0670e386cd007656ba3a621762494ffcc8723760b9563e3d176a99332eff8fedbe67dc59c7345fe851e24be076a1b13221f7c129e732f6f30feac79",
+      "master_fingerprint_hex": "5bb628ca",
+      "addresses": {
+        "bip44": "1Ckm94KQKhzDFmBedB4qB2wRuRUHWtGdTh",
+        "bip49": "3LvvLcySGnX4WjGCrFoeAiGRcjbJ4BNTwv",
+        "bip84": "bc1q0ga8e49phqqat62juvzv30gkpdeamhhhntxlug",
+        "bip86": "bc1p8qglvwlu2uw92n63ympdmw880qys3uw6xw0r2tn2vwhzjftdmkgs8cqvjt"
+      }
+    }
+  ]
+}

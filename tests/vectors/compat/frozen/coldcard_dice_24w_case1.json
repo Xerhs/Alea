@@ -1,0 +1,80 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "coldcard_dice_24w_case1",
+      "profile": "coldcard-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "655152231316521321611331544441236164664431121534415633526456254462245546236542364246312613322234612",
+      "event_count": 99,
+      "expected": "mnemonic",
+      "word_count": 24,
+      "requested_word_count": 24,
+      "mnemonic_indexes": [
+        650,
+        1221,
+        1731,
+        1735,
+        1337,
+        1573,
+        220,
+        185,
+        1955,
+        748,
+        550,
+        522,
+        842,
+        1317,
+        646,
+        227,
+        558,
+        83,
+        1539,
+        728,
+        1437,
+        1574,
+        333,
+        1414
+      ],
+      "mnemonic_words": [
+        "eyebrow",
+        "obvious",
+        "such",
+        "suggest",
+        "poet",
+        "seven",
+        "breeze",
+        "blame",
+        "virtual",
+        "frown",
+        "dynamic",
+        "donor",
+        "harsh",
+        "pigeon",
+        "express",
+        "broccoli",
+        "easy",
+        "apology",
+        "scatter",
+        "force",
+        "recipe",
+        "shadow",
+        "claim",
+        "radio"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:coldcard_rolls_py@05ac3893(sha256:4348a520e57df665e0ab57baa369a95ace0f9b5fba355b3f22b0b9b2c2e6cd30)",
+        "vendor_doc:verifying-dice-roll-math"
+      ],
+      "bip39_seed_hex": "9e6634ef38f034f0f9ca0805f5d790602ce6e09e18567e6ecd40ad9b34253e5d1a95c8847b981f603c03e51691c63e153bf47cc0b94b7d487f43c3dc258a248e",
+      "master_fingerprint_hex": "634a1f2e",
+      "addresses": {
+        "bip44": "1JFHSzfuoEiq4uMz4KfZA9YqL27eiKX1KG",
+        "bip49": "3EWGHsmf585DQoxrRWWig8KsAFYLQYXXDv",
+        "bip84": "bc1q0my23jqt97f6nurrwqvta2kdr0a9cdjphmamgg",
+        "bip86": "bc1pxvg9shn9hdgkcm8ul3063wkxjmf30fr7wly5dwekdn7jecvmq77q4wa2dh"
+      }
+    }
+  ]
+}

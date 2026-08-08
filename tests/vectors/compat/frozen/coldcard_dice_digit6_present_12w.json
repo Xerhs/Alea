@@ -1,0 +1,56 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "coldcard_dice_digit6_present_12w",
+      "profile": "coldcard-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "34561234561234561234561234561234561234561234561234",
+      "event_count": 50,
+      "expected": "mnemonic",
+      "word_count": 12,
+      "requested_word_count": 12,
+      "mnemonic_indexes": [
+        1870,
+        1215,
+        1070,
+        1808,
+        1517,
+        1227,
+        598,
+        1965,
+        1102,
+        1350,
+        1756,
+        222
+      ],
+      "mnemonic_words": [
+        "truth",
+        "obey",
+        "magic",
+        "tilt",
+        "sad",
+        "offer",
+        "enlist",
+        "volcano",
+        "mean",
+        "potato",
+        "swear",
+        "bridge"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:coldcard_rolls12_py@05ac3893(sha256:533daff58437cdc9a482d16cd181ba9b0fe6f86a6839b792343d39b496034c85)",
+        "vendor_doc:verifying-dice-roll-math (digit '6' hashed as ASCII 0x36, not remapped to 0)"
+      ],
+      "bip39_seed_hex": "a3dc4d5aaa6d0cc245bd245a349ff7c896927cf48d76ea07b5ff32a197f17b3ce897bfc49e85c01f5f768d8f3365e1040c0b107e46b70dfd3b3cbe245f795330",
+      "master_fingerprint_hex": "b65af550",
+      "addresses": {
+        "bip44": "13wQuTE1CoYVcYGgv15ZaXztW54WVLPLJT",
+        "bip49": "3D45ym7yJmRXckiVCDPgtAEKDNPXu1EZJs",
+        "bip84": "bc1qejktjj8ej74vrtschxuqjuj899ck0vh02hnhe7",
+        "bip86": "bc1pnuwqj52zmnmg4gy8j3d2zw4d4az3q6ywgesygdwqret9c8htfhdst2was5"
+      }
+    }
+  ]
+}

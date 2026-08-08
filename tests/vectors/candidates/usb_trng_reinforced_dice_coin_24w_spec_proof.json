@@ -1,0 +1,90 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_reinforced_dice_coin_24w_spec_proof",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "020406"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0001"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 2,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001010000020038031000000302040611000002000112145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "1c2df6c8a1acbc718d0619182c311174b3f7bc838b1a02b639809fff9b8f07ea",
+      "mnemonic_indexes": [
+        225,
+        893,
+        1425,
+        538,
+        1630,
+        454,
+        416,
+        1561,
+        193,
+        780,
+        546,
+        1867,
+        507,
+        1778,
+        113,
+        794,
+        21,
+        1422,
+        769,
+        511,
+        1997,
+        1596,
+        253,
+        544
+      ],
+      "mnemonic_words": [
+        "bring",
+        "hurry",
+        "rate",
+        "drive",
+        "slim",
+        "decide",
+        "cross",
+        "segment",
+        "blouse",
+        "ghost",
+        "dust",
+        "truly",
+        "disorder",
+        "tattoo",
+        "athlete",
+        "globe",
+        "actor",
+        "range",
+        "gasp",
+        "divide",
+        "whale",
+        "shy",
+        "cabbage",
+        "dune"
+      ],
+      "bip39_seed_hex": "1b4de398366c7161aebe155ee73c374bc7d828033d14482af2ec3187cf9ca06a69f9d644a4af691e6938f8478402b3163fcddb5793babee22ce38d09b8134243",
+      "master_fingerprint_hex": "99a152f9",
+      "addresses": {
+        "bip44": "19FqQeSRaFp3Ky74WVdFke1L1nruYPAg4y",
+        "bip49": "3P2pVnfAttJ95n4hydtvFBCxCKyXSk2Kzs",
+        "bip84": "bc1qr8ytae4xp434m9dzxrt3u37d6vurjq3gxuvz6s",
+        "bip86": "bc1pz8c66z0m70ls8pzw8w9u79uczp5alpn9q52mdahtrv3xwugxh0ks2t6gzf"
+      }
+    }
+  ]
+}

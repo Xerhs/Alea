@@ -1,0 +1,54 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_dice_digit6_present_12w",
+      "profile": "seedsigner-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "12345612345612345612345612345612345612345612345612",
+      "event_count": 50,
+      "expected": "mnemonic",
+      "word_count": 12,
+      "mnemonic_indexes": [
+        1907,
+        1195,
+        1314,
+        1444,
+        1847,
+        671,
+        407,
+        1720,
+        1839,
+        379,
+        1437,
+        1839
+      ],
+      "mnemonic_words": [
+        "unveil",
+        "nice",
+        "picture",
+        "region",
+        "tragic",
+        "fault",
+        "cream",
+        "strike",
+        "tourist",
+        "control",
+        "recipe",
+        "tourist"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:seedsigner_mnemonic_generation_py@dev(embit-backed)"
+      ],
+      "bip39_seed_hex": "e641a88875f39fc1ed6d15e7d3ce575dbbb4c2fa11460cdc6a49764d14b9cb49a47a6423c3dae73e28761f717a2d103c7dae2bed4a3fde580bd1e89cfe4df8a1",
+      "master_fingerprint_hex": "85480bc5",
+      "addresses": {
+        "bip44": "1zeVUx2A9ShbLeZrVTSkp9F1KrCwS7fZ4",
+        "bip49": "38HEwh4SfVEqrFH7jE28CSpgWwzyf7zZSY",
+        "bip84": "bc1q40jg305efx4r2h9nmp7zr25supg58vpzcgx54e",
+        "bip86": "bc1pe00wkfendsvh47kvshv0jqe9j6ycjd5g98mspe6tcdlcnz3khqaqv75vag"
+      }
+    }
+  ]
+}

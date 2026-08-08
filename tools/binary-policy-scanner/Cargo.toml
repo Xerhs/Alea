@@ -1,0 +1,27 @@
+[package]
+# SPEC §28: production/test isolation binary-policy scanner (WP-30).
+# Host-only tool; never part of the production UEFI dependency graph.
+name = "binary-policy-scanner"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "binary-policy-scanner"
+path = "src/main.rs"
+
+[dependencies]
+# PE/COFF parsing (SPEC §28). `object` is a maintained, widely-reviewed
+# std object-file reader; used here in preference to hand-rolling PE
+# section/symbol-table parsing (see src/main.rs module doc for the
+# tradeoff note). Pinned exact version per this tool's own dependency
+# policy (WP-30 owns this manifest; not part of the production graph
+# pinned in the root Cargo.toml [workspace.dependencies]).
+object = { version = "=0.36.7", default-features = false, features = ["std", "read_core", "pe", "coff"] }
+
+[dev-dependencies]
+# Test-only: `object::write` to build minimal, real COFF fixtures for the
+# unit tests in `src/main.rs` (see that module's test doc comment) — not
+# used by the shipped scanner binary itself.
+object = { version = "=0.36.7", default-features = false, features = ["std", "read_core", "write_core", "write_std", "pe", "coff"] }

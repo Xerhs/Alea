@@ -1,0 +1,66 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_reinforced_dice_coin_insertion_order_independence",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010080000100380310000032030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030411000050010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010012145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "90b6dc198ef61d76a44eeac219b550fa",
+      "mnemonic_indexes": [
+        1157,
+        1463,
+        51,
+        239,
+        782,
+        1498,
+        1161,
+        1770,
+        1552,
+        1645,
+        673,
+        1965
+      ],
+      "mnemonic_words": [
+        "mouse",
+        "report",
+        "all",
+        "bulb",
+        "gift",
+        "robust",
+        "muffin",
+        "tail",
+        "search",
+        "soap",
+        "feature",
+        "volcano"
+      ],
+      "bip39_seed_hex": "6a4e9291482b34d8ffdadd836cfe0423d4be24f9012b2adcf3aac3b427e7b1217db8d35909aaed1dfc3b232312159099b2c199b6489182b37510e2f0e771a759",
+      "master_fingerprint_hex": "fa349bee",
+      "addresses": {
+        "bip44": "1AcEU2BRPB31ShFFwn41aL7G3UGqPr72yo",
+        "bip49": "3BE4RbBgBW1Eo2j6mrCkdfgop7j7TLYXfq",
+        "bip84": "bc1qs2ed2cwpzat67h35w2yt66hfqlqt4l8qgu8svm",
+        "bip86": "bc1pdla6g6lvkrasrn9avxtp7jdz049utrvsme8hgqj0pcpj4hmns4jqhtsgm2"
+      }
+    }
+  ]
+}

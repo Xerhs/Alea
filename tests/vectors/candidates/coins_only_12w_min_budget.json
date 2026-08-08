@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "coins_only_12w_min_budget",
+      "sources": [
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001001001110000800001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001",
+      "final_entropy_hex": "a369bc8251de928d6af1d13ee69896e8",
+      "mnemonic_indexes": [
+        1307,
+        623,
+        260,
+        1309,
+        1865,
+        565,
+        1374,
+        465,
+        503,
+        422,
+        301,
+        1675
+      ],
+      "mnemonic_words": [
+        "pet",
+        "evil",
+        "calm",
+        "photo",
+        "truck",
+        "effort",
+        "profit",
+        "demand",
+        "discover",
+        "crumble",
+        "certain",
+        "sphere"
+      ],
+      "bip39_seed_hex": "3c83900d4362fa8ebe3dcea70c994e256b038fcf579276e7a98ca7298f949de8938035456df2b7cdbf9848fc6b5734b6654a812bb3470f8a3762ae5fbff71553",
+      "master_fingerprint_hex": "4f162e87",
+      "addresses": {
+        "bip44": "1MDGjbGvgpApDMSSGiRGAGsK5Ujai6NDP",
+        "bip49": "3Bi7K8NoAmcxKf2GjKJdaH6VnE5M5sxeYD",
+        "bip84": "bc1q6kctnlzsdccmgc0zju2gmnmgwht7g20f7m4m52",
+        "bip86": "bc1pmdxxkxerfusugkslegf0rzwjxskqz2jpqw6tlm6cmf0x2sek7qjq6w9ynv"
+      }
+    }
+  ]
+}

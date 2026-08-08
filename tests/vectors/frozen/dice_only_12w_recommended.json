@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_12w_recommended",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "01020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001008000010008011000004001020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304",
+      "final_entropy_hex": "f2afa8159f9abb4b206c93ac2a5190d5",
+      "mnemonic_indexes": [
+        1941,
+        1002,
+        43,
+        505,
+        1373,
+        1324,
+        1037,
+        1171,
+        1377,
+        660,
+        801,
+        1366
+      ],
+      "mnemonic_words": [
+        "verify",
+        "later",
+        "air",
+        "dish",
+        "produce",
+        "pitch",
+        "like",
+        "mystery",
+        "promote",
+        "family",
+        "goddess",
+        "print"
+      ],
+      "bip39_seed_hex": "de84e69f55306aed6ccfdf574a38c0c2ec46167def49390b9603cbe37d4b5a15029b8aa87099b83d1582baa481e6d3201c2d77f51235422e55a7b20c0dfd2bc4",
+      "master_fingerprint_hex": "989acbc9",
+      "addresses": {
+        "bip44": "17Gr7sfiqHejW86FcmmKc9rK44bE2Pbh14",
+        "bip49": "3PZ3JRrZ7BS8VfjwGcnxeJ8g3Pxd3ZmYqk",
+        "bip84": "bc1qa42guptwy8yknmtfe4us5wht2utxc9rxeyrn37",
+        "bip86": "bc1ps4dm44l3f60y5tssnnt00hq9wvjzs0m26mtnz6hqr9ltmfxu9aws7q47u5"
+      }
+    }
+  ]
+}

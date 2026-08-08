@@ -1,0 +1,17 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_dice_empty_string_no_oracle",
+      "profile": "seedsigner-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "",
+      "event_count": 0,
+      "expected": "refusal",
+      "error_kind": "Empty",
+      "reason": "event string is empty",
+      "oracle_kind": "math_boundary_no_oracle",
+      "ground_truth": []
+    }
+  ]
+}

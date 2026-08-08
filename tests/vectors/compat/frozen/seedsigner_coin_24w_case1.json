@@ -1,0 +1,78 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_coin_24w_case1",
+      "profile": "seedsigner-coin",
+      "method": "Sha256AsciiDigest",
+      "events": "1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+      "event_count": 256,
+      "expected": "mnemonic",
+      "word_count": 24,
+      "mnemonic_indexes": [
+        1265,
+        889,
+        1066,
+        738,
+        1259,
+        1641,
+        1996,
+        47,
+        951,
+        648,
+        1740,
+        679,
+        1581,
+        523,
+        959,
+        121,
+        1861,
+        174,
+        1970,
+        1360,
+        795,
+        148,
+        1688,
+        1856
+      ],
+      "mnemonic_words": [
+        "owner",
+        "hundred",
+        "luxury",
+        "fox",
+        "output",
+        "snake",
+        "wet",
+        "album",
+        "ivory",
+        "extra",
+        "sunset",
+        "female",
+        "shield",
+        "door",
+        "jewel",
+        "august",
+        "trim",
+        "beyond",
+        "wagon",
+        "present",
+        "gloom",
+        "barely",
+        "spread",
+        "trend"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:seedsigner_mnemonic_generation_py@dev(embit-backed)"
+      ],
+      "bip39_seed_hex": "11e275d75b2f2df73679b6fa02150639f13c035035e2bbb667e09c08cb45654424e58678a76a620f763a87abaac04694b4ee204f8a5a8da91451e764c4124929",
+      "master_fingerprint_hex": "e185ad62",
+      "addresses": {
+        "bip44": "1JioWWSNEn5z6ohchrRubuUkdhVDYD8Xen",
+        "bip49": "36e3gy22nA4RArWaLwoy29F99pgxWYqDSt",
+        "bip84": "bc1qvaqxrgq0q8r3sxsj53nw3wr2mm4dem32lzn435",
+        "bip86": "bc1pntuy4cmxv2y9eprahjqjw6a2807g3xh4j622l7p2e0hu699n2v5qq7ctyw"
+      }
+    }
+  ]
+}

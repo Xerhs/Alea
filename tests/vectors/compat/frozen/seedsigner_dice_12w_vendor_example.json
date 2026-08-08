@@ -1,0 +1,55 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_dice_12w_vendor_example",
+      "profile": "seedsigner-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "65515223131652132161133154444123616466443112153441",
+      "event_count": 50,
+      "expected": "mnemonic",
+      "word_count": 12,
+      "mnemonic_indexes": [
+        869,
+        1062,
+        1520,
+        1360,
+        646,
+        1847,
+        1247,
+        1578,
+        1761,
+        1120,
+        900,
+        1287
+      ],
+      "mnemonic_words": [
+        "hole",
+        "luggage",
+        "safe",
+        "present",
+        "express",
+        "tragic",
+        "orbit",
+        "shed",
+        "switch",
+        "metal",
+        "identify",
+        "path"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:seedsigner_mnemonic_generation_py@dev(embit-backed)",
+        "vendor_doc:dice_verification.md"
+      ],
+      "bip39_seed_hex": "bb89267ed5caabcf8eb44b3e27bb119a9c7c27e437a9ddf89373e2ccd604628fdf2d796627f65c3d91723e0e166d2b3372a1c5fbb15211f1ee28a7753018dc99",
+      "master_fingerprint_hex": "8d9cced8",
+      "addresses": {
+        "bip44": "1NkSCUK6AnSgw7M7f9vR5xFxC4BeHKSUBL",
+        "bip49": "35CugTwJ5VNkXxoqQZaAceJ6zCMjbpyR15",
+        "bip84": "bc1q00lln3r4mt4uwvg7mxv96xgpewauwmggkex2ff",
+        "bip86": "bc1papvwvh8cv6v22cj0m7erg7sq2xmnsuf2r355r5fl588thf0rr9ns4p76g3"
+      }
+    }
+  ]
+}

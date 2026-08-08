@@ -1,0 +1,26 @@
+[package]
+# SPEC §10, §32: deterministic FAT/ESP boot-media builder (WP-29).
+# Host-only tool; never part of the production UEFI dependency graph
+# (see root Cargo.toml comment on `seed-uefi-production`'s dependency
+# edges — this crate is not one of them).
+name = "image-builder"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+name = "image_builder"
+path = "src/lib.rs"
+
+[[bin]]
+name = "image-builder"
+path = "src/main.rs"
+
+[dependencies]
+# SHA-256 for the published image digest (SPEC §32: "published binary and
+# source hashes"). Reuses the workspace-pinned, already-reviewed `sha2`
+# dependency (SPEC §3 table) rather than adding a new one.
+sha2 = { workspace = true }
+
+[dev-dependencies]

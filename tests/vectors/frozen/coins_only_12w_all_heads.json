@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "coins_only_12w_all_heads",
+      "sources": [
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001001001110000800101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+      "final_entropy_hex": "b6430608eee56bb4162e823596126f27",
+      "mnemonic_indexes": [
+        1458,
+        193,
+        1041,
+        1774,
+        693,
+        1744,
+        709,
+        1666,
+        428,
+        1412,
+        1246,
+        638
+      ],
+      "mnemonic_words": [
+        "rent",
+        "blouse",
+        "lion",
+        "tape",
+        "find",
+        "sure",
+        "flavor",
+        "space",
+        "culture",
+        "rack",
+        "orange",
+        "exist"
+      ],
+      "bip39_seed_hex": "738c2c794d316eb1d434b8989eda5ddba49ff43b7d8dc315b3e636f25e36178a6a9052675b976a58900fb002b242a5df184ccaf791057ae499b10313ac203031",
+      "master_fingerprint_hex": "d9ce4820",
+      "addresses": {
+        "bip44": "1HKJpXv766kMF5TkrBbANcHJQKyYxofvG4",
+        "bip49": "3NEVH67WiJKUmMCeQycZgpQusJ9tvNdMqD",
+        "bip84": "bc1qqr7sej5vfpdp7me0sczw7p3flhsd79k3q28cwc",
+        "bip86": "bc1pm6p7kexv4c6yeedje3nkhhujd76f5n5tuemmvhtffuvadaywm3uq7jkqkj"
+      }
+    }
+  ]
+}

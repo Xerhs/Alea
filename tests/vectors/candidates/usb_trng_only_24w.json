@@ -1,0 +1,80 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_only_24w",
+      "sources": [
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010100000100200112145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "24654321d2c3d7d8443bcfac3171c9b81a35664c3928b039033eed51c96be191",
+      "mnemonic_indexes": [
+        291,
+        336,
+        1603,
+        1324,
+        491,
+        1889,
+        135,
+        975,
+        1377,
+        1116,
+        915,
+        897,
+        1306,
+        1433,
+        391,
+        296,
+        1409,
+        1600,
+        1661,
+        1749,
+        228,
+        1455,
+        1074,
+        491
+      ],
+      "mnemonic_words": [
+        "caught",
+        "claw",
+        "silent",
+        "pitch",
+        "dice",
+        "umbrella",
+        "axis",
+        "ketchup",
+        "promote",
+        "merit",
+        "include",
+        "ice",
+        "person",
+        "rebel",
+        "couch",
+        "celery",
+        "rabbit",
+        "siege",
+        "soul",
+        "survey",
+        "broken",
+        "remove",
+        "main",
+        "dice"
+      ],
+      "bip39_seed_hex": "ebb92147e1c4987dcd08c2c410e9cd24c33f04cae67913b0990e62b839b6943fe86a36dda79e9de9c50a2e90553769f0a9bfa0233541c3c37f58a47b75e69b3a",
+      "master_fingerprint_hex": "e4812b1c",
+      "addresses": {
+        "bip44": "1HZPTcmAemN3xV2rZ7WzqPrjTb8SHDSWyz",
+        "bip49": "3P4CauQwkzdMKe2kXXiqCbxa9MGZVd5QLW",
+        "bip84": "bc1qq0g2paehllrra0j8ju0yfzy87z04m0r9wqfue7",
+        "bip86": "bc1pgefl3cl72yum69gqjfeyn9cdegcm3y6ff6f28k7xzkjqtf8eh25q0aqkku"
+      }
+    }
+  ]
+}

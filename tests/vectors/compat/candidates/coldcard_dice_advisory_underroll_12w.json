@@ -1,0 +1,57 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "coldcard_dice_advisory_underroll_12w",
+      "profile": "coldcard-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "2345612345612345612345612345612345612345",
+      "event_count": 40,
+      "expected": "mnemonic",
+      "word_count": 12,
+      "mnemonic_indexes": [
+        2020,
+        1249,
+        1476,
+        1577,
+        611,
+        1503,
+        1954,
+        360,
+        1421,
+        888,
+        2007,
+        279
+      ],
+      "mnemonic_words": [
+        "wish",
+        "order",
+        "review",
+        "share",
+        "erase",
+        "room",
+        "violin",
+        "code",
+        "random",
+        "humor",
+        "wife",
+        "carry"
+      ],
+      "oracle_kind": "pending_hw_confirmation",
+      "ground_truth": [
+        "pending_hw_confirmation:physical_dice_only_coldcard",
+        "vendor_doc:verifying-dice-roll-math (50/99 are advisory minimums, not enforced)"
+      ],
+      "requested_word_count": 12,
+      "bip39_seed_hex": "e2f50187a32d42c1ec044873fad34bf48619de1ce709bce6914c4954a4a239efe2d4e1b5f0824d4d5f28e8b76582d0c51fe4163cd15af4cd1b1c7515c7fd11bc",
+      "master_fingerprint_hex": "d55cb22c",
+      "addresses": {
+        "bip44": "14Y5hcsPLjcwarejWp2RB7Be3rGxEWNHnq",
+        "bip49": "3AKsC2HQNUQqjktQmvt6k8ubsLtLCfdBxF",
+        "bip84": "bc1qfplplaa7kak3lk0zxgdse8nam7ylzj9lk8j8tu",
+        "bip86": "bc1prv73eng62wrmlmanm0fn40acexqjqeulnf3hv3qjyclx4s2p0ceq4s7u0c"
+      },
+      "requires_hw_confirmation": true
+    }
+  ]
+}

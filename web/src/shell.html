@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+<!-- No favicon <link>: img-src 'none' already blocks any favicon fetch, so a
+     data:, link only triggers a CSP violation with no benefit. -->
+<title>Alea — Offline Web Edition (Phase 1, verification only)</title>
+<style>{{STYLE}}</style>
+</head>
+<body>
+<div class="band top">HOT BROWSER &mdash; the highest-risk Alea edition. This page is VERIFICATION / REHEARSAL ONLY: it generates no real seed. Use the air-gapped USB edition for anything of value.</div>
+
+<div class="wrap">
+  <h1>Alea &mdash; Offline Web Edition</h1>
+  <p class="sub">Phase 1: fixed public-vector rehearsal, mnemonic verification, and foreign entropy-encoding reproduction. Runs the real Alea Rust core compiled to WebAssembly, fully offline, nothing external.</p>
+
+  <div class="hierarchy">
+    <b>Trust hierarchy:</b> Air-gapped USB (UEFI) &gt; Desktop (hot OS) &gt; <b>Web (hot browser &mdash; you are here, most convenient, highest risk)</b>.
+    The web edition never claims parity with the hardware or desktop editions.
+  </div>
+
+  <div id="origin" class="origin"></div>
+  <div id="boot-error" class="err"></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" data-target="p-reh" aria-selected="true" role="tab">1. Rehearsal</button>
+    <button class="tab" data-target="p-ver" aria-selected="false" role="tab">2. Verify mnemonic</button>
+    <button class="tab" data-target="p-cmp" aria-selected="false" role="tab">3. Entropy compat</button>
+    <button class="tab" data-target="p-int" aria-selected="false" role="tab">Integrity</button>
+  </div>
+
+  <!-- Feature 1 -->
+  <section id="p-reh" class="panel active" role="tabpanel">
+    <h2>Fixed public-vector rehearsal</h2>
+    <p>Derives the BIP39 mnemonic, four first-receive addresses (BIP44/49/84/86) and the BIP32 master fingerprint from the all-zero 16-byte entropy vector. Deterministic byte-parity demo &mdash; identical to the USB and desktop editions.</p>
+    <button id="reh-run" class="go">Run public test vector</button>
+    <div id="reh-out" class="results"></div>
+  </section>
+
+  <!-- Feature 2 -->
+  <section id="p-ver" class="panel" role="tabpanel">
+    <h2>Verification display</h2>
+    <p>Paste a BIP39 mnemonic (12 or 24 words) and an optional passphrase to see its addresses and master fingerprint. Only PUBLIC values are shown &mdash; never a private key, xprv, WIF, or the seed.</p>
+    <label for="ver-mnemonic">Mnemonic (12 or 24 words)</label>
+    <textarea id="ver-mnemonic" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="abandon abandon abandon … about"></textarea>
+    <p class="caption">Text you type here leaves copies this app cannot erase.</p>
+    <label for="ver-pass">Passphrase (optional)</label>
+    <input id="ver-pass" type="text" autocomplete="off" autocapitalize="off" autocorrect="false" spellcheck="false" class="masked">
+    <button id="ver-pass-toggle" class="tab minibtn">Show</button>
+    <p class="caption">Text you type here leaves copies this app cannot erase. (This is a plain field, not a password field, so the browser will not offer to save it.)</p>
+    <button id="ver-run" class="go">Verify</button>
+    <div id="ver-out" class="results"></div>
+
+    <details id="ver-more" class="more">
+      <summary>More derivation options</summary>
+      <p>Show additional receive addresses of the <b>same seed</b> (the mnemonic + passphrase above) under a chosen standard, account, change chain and index range &mdash; these are additional derivation <em>paths</em> of the same seed, not different seeds. Only PUBLIC values are shown: addresses and the master fingerprint, never a private key, xprv/xpub, WIF, or the seed.</p>
+      <div class="grid-params">
+        <div class="field">
+          <label for="grid-std">Standard</label>
+          <select id="grid-std" autocomplete="off">
+            <option value="0">BIP44 (1…)</option>
+            <option value="1">BIP49 (3…)</option>
+            <option value="2" selected>BIP84 (bc1q…)</option>
+            <option value="3">BIP86 (bc1p…)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="grid-account">Account&prime; (0&ndash;100)</label>
+          <input id="grid-account" type="number" min="0" max="100" step="1" value="0" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="grid-change">Change</label>
+          <select id="grid-change" autocomplete="off">
+            <option value="0" selected>External (receive)</option>
+            <option value="1">Internal (change)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="grid-start">Start index</label>
+          <input id="grid-start" type="number" min="0" max="100000" step="1" value="0" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="grid-count">Count (1&ndash;10)</label>
+          <input id="grid-count" type="number" min="1" max="10" step="1" value="5" inputmode="numeric" autocomplete="off">
+        </div>
+      </div>
+      <p class="caption">Uses the mnemonic and passphrase you entered above. Text you type leaves copies this app cannot erase.</p>
+      <button id="grid-run" class="go">Show addresses</button>
+      <div id="grid-out" class="results"></div>
+    </details>
+  </section>
+
+  <!-- Feature 3 -->
+  <section id="p-cmp" class="panel" role="tabpanel">
+    <h2>Entropy-encoding compatibility (Method C)</h2>
+    <p>Reproduce another tool's (<span class="mono">iancoleman/bip39</span>) raw-entropy &rarr; mnemonic &rarr; address result so you can cross-check it. This is the reproduction of foreign / throwaway / public material &mdash; never an Alea seed.</p>
+    <label for="cmp-enc">Encoding</label>
+    <select id="cmp-enc">
+      <option value="0">Binary [0-1]</option>
+      <option value="1">Base-6 [0-5]</option>
+      <option value="2">Dice [1-6]</option>
+      <option value="3">Base-10 [0-9]</option>
+      <option value="4" selected>Hex [0-9A-F]</option>
+      <option value="5">Cards [A2-9TJQK][CDHS]</option>
+    </select>
+    <label for="cmp-input">Foreign entropy symbols</label>
+    <textarea id="cmp-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="e.g. 00000000000000000000000000000000"></textarea>
+    <p class="caption">Text you type here leaves copies this app cannot erase.</p>
+    <button id="cmp-run" class="go">Reproduce</button>
+    <div id="cmp-out" class="results"></div>
+  </section>
+
+  <!-- Integrity -->
+  <section id="p-int" class="panel" role="tabpanel">
+    <h2>Integrity</h2>
+    <p>Compute the SHA-256 of the embedded WebAssembly bytes (using the core's own SHA-256) and compare it to the published value. <b>Scope:</b> this covers only the WASM bytes, NOT the HTML/JS wrapper &mdash; the authoritative check is hashing the downloaded <span class="mono">.html</span> file itself before opening it.</p>
+    <button id="selfhash-run" class="go">Compute embedded WASM SHA-256</button>
+    <div class="results show intmargin">
+      <div class="row"><div class="k">WASM size</div><div class="v" id="selfhash-len">—</div></div>
+      <div class="row"><div class="k">WASM SHA-256</div><div class="v hash" id="selfhash">—</div></div>
+    </div>
+    <details>
+      <summary>How to verify the download (before opening)</summary>
+      <ul>
+        <li>Windows: <span class="mono">certutil -hashfile alea-web-offline.html SHA256</span> (or PowerShell <span class="mono">Get-FileHash</span>)</li>
+        <li>macOS: <span class="mono">shasum -a 256 alea-web-offline.html</span></li>
+        <li>Linux: <span class="mono">sha256sum alea-web-offline.html</span></li>
+      </ul>
+      Compare the result to the signed <span class="mono">SHA256SUMS</span> shipped in the web edition download (its <span class="mono">SHA256SUMS.minisig</span> signature), then disconnect the network and open the file from a local <span class="mono">file://</span> path.
+    </details>
+  </section>
+
+  <p class="footnote">Alea Offline Web Edition &mdash; Phase 1 (verification-only). Links seed-core + seed-derive + seed-compat compiled to wasm32-unknown-unknown. No network, no telemetry, no storage of secrets. Open offline from <span class="mono">file://</span>.</p>
+</div>
+
+<div class="band bottom">Extensions, other tabs, malware, swap, and screen capture can read anything shown or typed here. The browser cannot scrub memory: mnemonics and passphrases you enter leave copies this app cannot erase.</div>
+
+<!-- First-run honesty disclosure -->
+<div id="disclosure" class="overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2>Before you begin &mdash; read this</h2>
+    <p><b>This is a browser: the worst general-purpose environment for handling secrets.</b> It is offered for reach and convenience, and it is honest about the cost.</p>
+    <p><b>Trust hierarchy:</b> Air-gapped USB (UEFI) &gt; Desktop (hot OS) &gt; Web (hot browser). For any real funds, use the air-gapped USB edition.</p>
+    <p><b>What this page CANNOT guarantee, unlike the USB edition:</b></p>
+    <ul>
+      <li>No memory scrub of JS/DOM copies &mdash; anything typed or displayed (mnemonic, passphrase) leaves copies in the JS heap this app cannot pin, overwrite, or locate.</li>
+      <li>No control over swap &mdash; the OS may page secrets to disk.</li>
+      <li>No control over the environment &mdash; browser extensions, other tabs, the JS engine/JIT, screen capture/screen-sharing, and software keyboards / clipboard managers can all observe secrets.</li>
+      <li>No removed OS, no pre-boot execution, no attested entropy source, no watermark-composited display path.</li>
+    </ul>
+    <p><b>Phase 1 generates no seed.</b> It only rehearses a public vector and verifies foreign material you supply. But pasting a real mnemonic or passphrase to verify it still puts a real secret on the unscrubbable JS heap &mdash; so treat this as a hot environment regardless.</p>
+    <p>The only supported use: download &rarr; verify the hash &rarr; disconnect the network &rarr; open the local file offline.</p>
+    <button id="disclosure-ok" class="go">I understand &mdash; continue</button>
+  </div>
+</div>
+
+<script>{{SCRIPT}}</script>
+</body>
+</html>

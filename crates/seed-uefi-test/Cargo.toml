@@ -1,0 +1,24 @@
+[package]
+name = "seed-uefi-test"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Test edition (SPEC §4.2): distinct executable name, distinct package
+# identifier, permanent watermark, public deterministic vectors only. May
+# depend on `seed-test-vectors`; `seed-uefi-production` may not depend on
+# this crate.
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-protocol = { path = "../seed-protocol" }
+seed-derive = { path = "../seed-derive" }
+seed-platform-x86 = { path = "../seed-platform-x86" }
+seed-gop-ui = { path = "../seed-gop-ui", features = ["uefi-backend"] }
+seed-test-vectors = { path = "../seed-test-vectors" }
+# WP-25 (SPEC §22.1-22.5, §11, §8.4): the host-testable pre-secret/
+# secret-phase flow logic, at the top-level, edition-neutral
+# `crates/seed-flow/` path (see that crate's own doc comment for why it
+# is a separate crate and why it does not live nested under this one).
+seed-flow = { path = "../seed-flow" }
+uefi = { workspace = true }

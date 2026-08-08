@@ -1,0 +1,80 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_24w_recommended",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000101000001000801100000800102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102",
+      "final_entropy_hex": "42fd96fdba7eafef5db374aee5fc67c1c11e78280c643b81718f58c32dd65ef6",
+      "mnemonic_indexes": [
+        535,
+        1893,
+        1531,
+        935,
+        1879,
+        1981,
+        950,
+        884,
+        1399,
+        383,
+        207,
+        1052,
+        143,
+        480,
+        1281,
+        1124,
+        476,
+        92,
+        798,
+        1420,
+        406,
+        1881,
+        990,
+        1791
+      ],
+      "mnemonic_words": [
+        "drill",
+        "uncover",
+        "satoshi",
+        "insane",
+        "turtle",
+        "waste",
+        "item",
+        "hub",
+        "puzzle",
+        "copper",
+        "boring",
+        "logic",
+        "ball",
+        "despair",
+        "parent",
+        "milk",
+        "describe",
+        "argue",
+        "glow",
+        "ranch",
+        "crazy",
+        "twenty",
+        "knock",
+        "that"
+      ],
+      "bip39_seed_hex": "24427042d3fb33372969f2b4e4760e01499b7c434406572690b57a0518bd169f03ce92f269c3844324ef45a141b9816bd4a0a8baf443a0d4cbfcbead9226a670",
+      "master_fingerprint_hex": "f631bccb",
+      "addresses": {
+        "bip44": "1JmXBbLY1vcgM9bY3N8MrZvVCxNUPmTBmK",
+        "bip49": "38gseYnLsrBVaHJyXmVAX11mptPVPZEne8",
+        "bip84": "bc1qkxqenjzxqqy0z5zcp3nzxh02x86eq5e4aru09m",
+        "bip86": "bc1pgmu3zkylq6cpfyuyl753f7rr9r9wdpegmhxqtsekrwy8alv42scscn8jvj"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+[package]
+# SPEC §10 steps 6-7: media readback verifier (WP-29).
+# Host-only tool; never part of the production UEFI dependency graph.
+name = "media-readback-verifier"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+name = "media_readback_verifier"
+path = "src/lib.rs"
+
+[[bin]]
+name = "media-readback-verifier"
+path = "src/main.rs"
+
+[dependencies]
+# Reuses the workspace-pinned, already-reviewed `sha2` dependency (SPEC §3
+# table) rather than adding a new one.
+sha2 = { workspace = true }
+
+[dev-dependencies]
+# Used only by tests/roundtrip.rs to produce a real deterministic image via
+# the sibling WP-29 tool's public library API, so the round-trip test
+# exercises the actual on-disk artifact shape rather than a synthetic
+# stand-in. Same work package, same ownership; not a new external
+# dependency.
+image-builder = { path = "../image-builder" }

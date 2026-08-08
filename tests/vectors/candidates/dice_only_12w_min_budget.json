@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_12w_min_budget",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001000801100000320102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102",
+      "final_entropy_hex": "ab8f1355ae5cac73d3631bc1e3f28278",
+      "mnemonic_indexes": [
+        1372,
+        964,
+        1707,
+        741,
+        1622,
+        463,
+        620,
+        795,
+        1551,
+        252,
+        1284,
+        1929
+      ],
+      "mnemonic_words": [
+        "process",
+        "joy",
+        "step",
+        "frequent",
+        "skull",
+        "delay",
+        "eternal",
+        "gloom",
+        "sea",
+        "buzz",
+        "party",
+        "van"
+      ],
+      "bip39_seed_hex": "37e70206ec02a33aa48dbd551cfa04520966c2d9201701df871ddcea585e9fb993046c74b02af55cbbb5d13cec7863db401245f2f5a899abb8b0c5520bbdede9",
+      "master_fingerprint_hex": "82ec24f2",
+      "addresses": {
+        "bip44": "18W3Dbw93RQG5g6ozshfUrkvdBnHs9Qvda",
+        "bip49": "38wB6tWmXCBTUBZMLp3jHxnH3h7GNPEHr4",
+        "bip84": "bc1qhzz8ehuceuxygd5n4fhj02wyvvr7n4zgvm0s9m",
+        "bip86": "bc1p8w2xpnyjvfupxc25d7u44qu3dnfzzkzlv92sctxc7as356k74tjsklsr7l"
+      }
+    }
+  ]
+}

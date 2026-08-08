@@ -1,0 +1,19 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_dice_40rolls_refusal",
+      "profile": "seedsigner-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "1234561234561234561234561234561234561234",
+      "event_count": 40,
+      "expected": "refusal",
+      "error_kind": "Refused",
+      "reason": "SeedSigner \u2014 dice sets word count from the roll count: 50 rolls -> 12 words, 99 rolls -> 24 words, and it refuses any other number of rolls. You entered 40 rolls; enter exactly 50 or 99.",
+      "oracle_kind": "vendor_tool_refusal",
+      "ground_truth": [
+        "vendor_tool_refusal:seedsigner_tools_mnemonic_py@dev"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_with_dice_only_24w",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "01020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000101000001002802100000640102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030412145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "9a0f4377aec1d4de7198c7ae31dcc066f07fed82347ab7920bc2d8fd8069085c",
+      "mnemonic_indexes": [
+        1232,
+        976,
+        1775,
+        748,
+        234,
+        889,
+        1587,
+        199,
+        1393,
+        1143,
+        384,
+        1647,
+        63,
+        1974,
+        70,
+        1146,
+        1468,
+        1154,
+        1925,
+        1423,
+        1728,
+        420,
+        267,
+        1140
+      ],
+      "mnemonic_words": [
+        "old",
+        "key",
+        "target",
+        "frown",
+        "bubble",
+        "hundred",
+        "shoe",
+        "body",
+        "purchase",
+        "moment",
+        "copy",
+        "social",
+        "among",
+        "walnut",
+        "angle",
+        "monster",
+        "resource",
+        "motion",
+        "vague",
+        "rapid",
+        "submit",
+        "cruel",
+        "cannon",
+        "model"
+      ],
+      "bip39_seed_hex": "efd86fb2b6cc17d444d5314226f3b49c780915ee2551e110ea4fae89dc2d2b576875e12fa5dba142bab25643b34a27af463ed665af556bd786c21fe1431a8178",
+      "master_fingerprint_hex": "27d4726f",
+      "addresses": {
+        "bip44": "1EgegC4SDD5RdWogDJ2SbxUahkEksjppZ7",
+        "bip49": "3A1AuKhAHZX3ehGdeHLFYSGdr8xbS6Sy3Q",
+        "bip84": "bc1qvrhtm7tjkfd30et2hfe6rt7rkxqvz4ursp5l9q",
+        "bip86": "bc1p8xavctxzsyhqjy2msrexku7sxx3m0hyuyhs08ymxmt75pu7v9h5sz5mkjw"
+      }
+    }
+  ]
+}

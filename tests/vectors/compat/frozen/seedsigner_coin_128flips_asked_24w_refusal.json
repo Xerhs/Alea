@@ -1,0 +1,20 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_coin_128flips_asked_24w_refusal",
+      "profile": "seedsigner-coin",
+      "method": "Sha256AsciiDigest",
+      "events": "01010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+      "event_count": 128,
+      "expected": "refusal",
+      "error_kind": "Refused",
+      "reason": "128 flips cannot produce 24 words on SeedSigner \u2014 coin flips. SeedSigner \u2014 coin flips sets word count from the flip count: 128 flips -> 12 words, 256 flips -> 24 words, and it refuses any other pairing. This tool refuses the same inputs the device refuses, on purpose.",
+      "oracle_kind": "vendor_tool_refusal",
+      "ground_truth": [
+        "vendor_tool_refusal:seedsigner_tools_mnemonic_py@dev"
+      ],
+      "requested_word_count": 24
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# tests/qemu/scripts/verify-chainload.keys
+#
+# SPEC_MAIN_MENU.md §17.4 smoke test: the production launcher's `[2] Verify`
+# item chain-loads the SEPARATE `alea-verify.efi` binary from
+# `\EFI\ALEA\VERIFY.EFI` on the same image (the isolation-preserving Option-B
+# split — `seed-uefi-production` never links `seed-compat`). This script proves
+# the dual-file image really carries both binaries and that the second one
+# boots and renders its first screen.
+#
+# Run against the DUAL-FILE image only:
+#   tests/qemu/drive-ceremony.py --image <...>/alea-x86_64-usb.img \
+#       --script tests/qemu/scripts/verify-chainload.keys --out <dir>
+
+DELAY 90
+
+ECHO landing launcher
+SHOT 01-landing-menu
+
+ECHO [2] Verify -> chain-load \EFI\ALEA\VERIFY.EFI
+KEY 2
+WAIT 8
+SHOT 02-alea-verify-first-screen
+
+WAIT 3
+SHOT 03-alea-verify-settled

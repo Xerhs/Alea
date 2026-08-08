@@ -1,0 +1,8 @@
+# Scratch output of drive-ceremony.py / screenshot.sh (timestamped or named
+# run directories). Regenerable from a real QEMU run; the raw framebuffer
+# .ppm dumps are ~12 MB each.
+/out/
+
+# Never commit raw framebuffer dumps anywhere in this tree — the reviewable
+# form is the PNG under artifacts/ (same file, ~1/400th the size).
+*.ppm

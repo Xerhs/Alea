@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_only_12w",
+      "sources": [
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010080000100200112145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "1aac97db8b33c52589367a336a44823a",
+      "mnemonic_indexes": [
+        213,
+        805,
+        1975,
+        179,
+        482,
+        1174,
+        294,
+        1658,
+        411,
+        657,
+        260,
+        930
+      ],
+      "mnemonic_words": [
+        "boy",
+        "gorilla",
+        "want",
+        "biology",
+        "detail",
+        "name",
+        "cave",
+        "soon",
+        "cricket",
+        "fall",
+        "calm",
+        "inmate"
+      ],
+      "bip39_seed_hex": "afa31818ad4b906012087e94ce32457433c8c5542c564595897dbc5210c4a0e12deab673f62c1e94cbdfbb3b1eadbf9f5f8de3422776b4e8946ca4f0cb5340d3",
+      "master_fingerprint_hex": "905b6243",
+      "addresses": {
+        "bip44": "15CA7L7ZvyGBxFbacJgG9TAyKoSAFE6qra",
+        "bip49": "3DuKTXBuchcViARAm9jmYw9uCqoHQeiP5g",
+        "bip84": "bc1qkkl47s7zhwsr2gvwjh92z03sm2ukkmf0t9qg07",
+        "bip86": "bc1plq5us4pnp6c3gyz869zu4yf9v54wfhkp6kaqy3qnagfvkum9egmsqa2c57"
+      }
+    }
+  ]
+}

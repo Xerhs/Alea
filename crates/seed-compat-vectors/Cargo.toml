@@ -1,0 +1,21 @@
+[package]
+name = "seed-compat-vectors"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# WP-C3 vector-freeze barrier crate (IMPLEMENTATION_MAP_COMPAT.md §4 WP-C3).
+# Runs every `tests/vectors/compat/` candidate/frozen case through the real
+# Rust `seed-compat` crate (digest + word-count rule + refusal) and, for
+# `mnemonic` cases, the real `seed-derive` address chain, asserting each
+# reproduces words + seed + fingerprint + 4 addresses; refusal cases must
+# return `Err`. Host-test only; never in the production graph
+# (SPEC_COMPAT §9). Depends only on sibling workspace crates -- no
+# third-party additions (IMPLEMENTATION_MAP_COMPAT.md §1 rule 7): JSON is
+# read by a small hand-rolled parser under `#[cfg(test)]`, exactly as
+# `seed-test-vectors` does (no serde in the approved set).
+[dependencies]
+seed-compat = { path = "../seed-compat" }
+seed-core = { path = "../seed-core" }
+seed-derive = { path = "../seed-derive" }

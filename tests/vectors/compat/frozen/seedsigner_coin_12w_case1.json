@@ -1,0 +1,54 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_coin_12w_case1",
+      "profile": "seedsigner-coin",
+      "method": "Sha256AsciiDigest",
+      "events": "01010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+      "event_count": 128,
+      "expected": "mnemonic",
+      "word_count": 12,
+      "mnemonic_indexes": [
+        1592,
+        1540,
+        519,
+        798,
+        358,
+        452,
+        549,
+        533,
+        191,
+        127,
+        1240,
+        277
+      ],
+      "mnemonic_words": [
+        "shove",
+        "scene",
+        "domain",
+        "glow",
+        "coast",
+        "decade",
+        "dwarf",
+        "dress",
+        "blood",
+        "avocado",
+        "only",
+        "cargo"
+      ],
+      "oracle_kind": "vendor_tool",
+      "ground_truth": [
+        "vendor_tool:seedsigner_mnemonic_generation_py@dev(embit-backed)"
+      ],
+      "bip39_seed_hex": "4fae0ba09c826b2913d981391670bffe7a04f201f262dcc7aec51a3d8c3de670003143e7e1271855964a5e7f5000fa36786b5595ef3f469ea6ff88c6ae303058",
+      "master_fingerprint_hex": "3994681e",
+      "addresses": {
+        "bip44": "14h7pwFcd4M51EJmtttxPTSofWVYhzYE1D",
+        "bip49": "3B4UzxtAP35TkfTnSCSodZNwY6i3q12VCA",
+        "bip84": "bc1q08cheflgald6a8fvrxhn2l2ggjrevme9mmawle",
+        "bip86": "bc1pdaquk0tm8uu0l7k9m7vhfwfxrwy3nkn56n2crwqn55hjparu3x5s7ge6tx"
+      }
+    }
+  ]
+}

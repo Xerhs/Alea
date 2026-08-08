@@ -1,0 +1,168 @@
+# Alea entropy-source policy — version 1 (SPEC.md §15)
+#
+# Owned by WP-12 (`IMPLEMENTATION_MAP.md` §6), parsed by
+# `crates/seed-protocol/src/policy/`. See that module's header for the
+# exact grammar this file must obey (a small fixed subset of TOML — not
+# every valid TOML file is valid here).
+#
+# This file is meant to be signed as part of the release process
+# (`IMPLEMENTATION_MAP.md` §5, WP-29/30); signature verification itself is
+# out of scope for the parser and for this file.
+#
+# SPEC §15 requires this policy to define: approved source classes,
+# approved algorithm identifiers, CPU vendor/family/model/stepping rules,
+# retry limits, sample sizes, sole-source-vs-supplementary-only flags, and
+# a known-bad-platform denylist. See §15.1-§15.4 for the per-source
+# requirements this file's values were chosen to satisfy.
+
+policy_version = 1
+
+# ---------------------------------------------------------------------------
+# EFI_RNG_PROTOCOL (SPEC §15.1)
+#
+# Version 1 ships with EFI RNG *unapproved*: no specific firmware RNG
+# algorithm has been reviewed yet, and SPEC §15.1 requires an explicit
+# approved algorithm rather than an ambiguous default. `allowed_algorithms`
+# is an empty scaffold — the review process appends specific algorithm
+# identifiers (rendered as text, e.g. an EFI RNG algorithm GUID string)
+# here once reviewed, never a wildcard.
+# ---------------------------------------------------------------------------
+[efi_rng]
+approved = false
+sole_source_allowed = false
+max_algorithms = 8
+allowed_algorithms = []
+
+# ---------------------------------------------------------------------------
+# RDSEED64 (SPEC §15.2)
+#
+# Approved and may stand alone as the sole machine source, subject to the
+# CPU allow-rules below. `instruction_width_bits` MUST be 64 (the parser
+# rejects any other value when `approved = true`); version 1 does not use
+# the 16/32-bit RDSEED forms.
+# ---------------------------------------------------------------------------
+[rdseed]
+approved = true
+sole_source_allowed = true
+instruction_width_bits = 64
+retry_limit = 75
+min_successful_values = 4
+diagnostic_blocks = 2
+
+# Broad allow-rule: modern Intel and AMD x86-64 parts, any family/model/
+# stepping, subject to the denylist below overriding specific bad
+# combinations. Rules are matched last-match-wins (see
+# `RdseedPolicy::is_cpu_allowed`), so a narrower later rule can carve out
+# an exception inside a broad earlier one.
+#
+# INFO-3 (v1 release scaffolding, deliberate): approving ANY GenuineIntel/
+# AuthenticAMD part with an empty denylist is an intentional v1 decision,
+# not an oversight. CPUID vendor/family/model/stepping is reported by the
+# CPU (or a hypervisor) and is trivially spoofable under virtualization, so
+# in v1 this gate constrains essentially nothing beyond "vendor string is
+# Intel or AMD and the RDSEED feature bit is set" — it is release
+# scaffolding for a future curated allow/deny list, not a security
+# boundary. This is honest because RDSEED can only ever be a machine
+# source, and machine-only generation forces the SPEC §18.2 warning
+# ("You are trusting this machine's random-number hardware completely...
+# nothing on this screen would look different" if it is faulty/malicious).
+[[rdseed_cpu_rules]]
+vendor = "GenuineIntel"
+family_min = 0
+family_max = 65535
+model_min = 0
+model_max = 255
+stepping_min = 0
+stepping_max = 255
+allow = true
+
+[[rdseed_cpu_rules]]
+vendor = "AuthenticAMD"
+family_min = 0
+family_max = 65535
+model_min = 0
+model_max = 255
+stepping_min = 0
+stepping_max = 255
+allow = true
+
+# ---------------------------------------------------------------------------
+# RDRAND (SPEC §15.3)
+#
+# Supplementary only in version 1: `sole_source_allowed` MUST be `false`
+# and `supplementary_only` MUST be `true` (the parser rejects the file
+# otherwise). RDRAND output MAY be sampled and tagged, but MUST NOT by
+# itself upgrade an otherwise-unsupported platform to "approved" and MUST
+# NOT be described as independent from RDSEED or EFI RNG.
+# ---------------------------------------------------------------------------
+[rdrand]
+approved = true
+sole_source_allowed = false
+supplementary_only = true
+
+# ---------------------------------------------------------------------------
+# USB hardware-TRNG (SPEC_USB_TRNG §8.1)
+#
+# Version 1 ships with USB TRNG *unapproved* and an empty device allow-list
+# — a scaffold, exactly like the shipped `[efi_rng]` and empty `[[denylist]]`
+# above. "This device is present" is never "this device is approved"
+# (SPEC_USB_TRNG §8.1). A USB TRNG never counts toward the SPEC §17.2
+# witnessed floor, unconditionally; there is deliberately no policy key
+# (`counts_toward_floor` or otherwise) that could change that
+# (SPEC_USB_TRNG §8.2, §10.2) — a policy file containing such a key is
+# rejected outright by the parser as an unknown key, not silently ignored.
+#
+# `min_read_bytes = 32` is one 256-bit health-checked block
+# (SPEC_USB_TRNG §6.1, §9); `read_timeout_ms`/`max_read_retries` bound the
+# per-read retry budget (SPEC_USB_TRNG §9: retry exhaustion is a hard fail,
+# never a silent substitution).
+# ---------------------------------------------------------------------------
+[usb_trng]
+approved = false
+sole_source_allowed = false
+min_read_bytes = 32
+read_timeout_ms = 2000
+max_read_retries = 3
+
+# Zero or more explicitly reviewed devices. Empty at ship (scaffold), exactly
+# like the `[efi_rng]`/`[[denylist]]` scaffolds above. Uncomment and adjust
+# once a specific device profile (e.g. OneRNG, VID:PID `0x1d50:0x6086` = decimal
+# `7504:24710`, `usb_class = "cdc-acm"`) has been reviewed (SPEC_USB_TRNG
+# §5.1, §8.1). `vendor_id`/`product_id` are decimal — this parser's integer
+# grammar has no hex literal form (`crates/seed-protocol/src/policy/parser.rs`
+# header):
+#
+# [[usb_trng_devices]]
+# profile        = "OneRNG"
+# vendor_id      = 7504    # 0x1d50
+# product_id     = 24710   # 0x6086
+# usb_class      = "cdc-acm"
+# init_command   = "cmd1"
+# min_firmware   = ""
+# reason_pinned  = "raw avalanche; reinforcement only; not sole-source"
+
+# ---------------------------------------------------------------------------
+# Known-bad platform denylist (SPEC §15)
+#
+# EMPTY BY DESIGN for version 1 — this is not an oversight. SPEC §15
+# requires the policy to *define* known-bad denylist entries and "required
+# microcode or firmware conditions **where known**": it mandates the schema
+# capability, not any specific entry, and no errata-affected
+# vendor/family/model/stepping/microcode combination has been reviewed and
+# accepted for v1. This empty state is regression-pinned:
+# `tools/image-builder/src/denylist.rs`'s
+# `no_denylist_blocks_in_current_shipped_policy_yields_empty_list` asserts
+# the shipped v1 policy parses to zero denylist records — so this scaffold
+# is verified, not merely undocumented.
+#
+# Do NOT populate this list with speculative or fabricated CPUID/microcode
+# values: a wrong entry either false-blocks good hardware or (worse) lends
+# false legitimacy to the list, and every real entry additionally changes
+# production RDSEED CPU-approval behavior (`RdseedPolicy::is_cpu_allowed`)
+# and MUST arrive through the compiled-in policy review + version bump, not an
+# unreviewed edit. Populate with `[[denylist]]` records (see
+# `crates/seed-protocol/src/policy/parser.rs` header for the exact field
+# grammar) only as specific errata are reviewed; never leave a genuinely
+# known-bad combination covered only by a broad `rdseed_cpu_rules`
+# allow-rule.
+# ---------------------------------------------------------------------------

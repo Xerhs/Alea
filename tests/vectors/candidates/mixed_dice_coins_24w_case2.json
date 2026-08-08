@@ -1,0 +1,85 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "mixed_dice_coins_24w_case2",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "01000100010001000100010001000100010001000100010001000100010001000100010001000100"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001010000010018021000005002030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102031100002801000100010001000100010001000100010001000100010001000100010001000100010001000100",
+      "final_entropy_hex": "5d0cc74d159dc1e16410083beb28b84ecf4e0ac90eb2be0e7bd6be8914859ff1",
+      "mnemonic_indexes": [
+        744,
+        817,
+        1690,
+        345,
+        1760,
+        1925,
+        1154,
+        8,
+        479,
+        714,
+        368,
+        1260,
+        1959,
+        43,
+        289,
+        1714,
+        1520,
+        926,
+        1965,
+        1000,
+        1162,
+        534,
+        1022,
+        416
+      ],
+      "mnemonic_words": [
+        "fringe",
+        "great",
+        "spy",
+        "clinic",
+        "swing",
+        "vague",
+        "motion",
+        "absurd",
+        "desk",
+        "flock",
+        "come",
+        "outside",
+        "visual",
+        "air",
+        "category",
+        "stone",
+        "safe",
+        "inherit",
+        "volcano",
+        "laptop",
+        "mule",
+        "drift",
+        "lemon",
+        "cross"
+      ],
+      "bip39_seed_hex": "61cce6bb20996d4a220db9ee9b5146eca320dd86d6eef9726c3295c0952e13e26ad30032b4a53ea67e26ad514ec7545080df6b34f7bdcb85c31bbd0d8d1437c7",
+      "master_fingerprint_hex": "8850087c",
+      "addresses": {
+        "bip44": "13SUgbffEFtCmDcmadnZV9X6WgrSid6uNj",
+        "bip49": "3DV7HvrUGGmCFrSLr9kf4JggHXMPssyq77",
+        "bip84": "bc1qd2zgpxvkj62u3pfr93e80kd36umx847pccy8yr",
+        "bip86": "bc1pun80prz7hvzvdew6d50m0cnq3xrdrylncdt6htxxmw0wqz4cn9wq49hnc8"
+      }
+    }
+  ]
+}

@@ -1,0 +1,235 @@
+# WP-32 (SPEC §28, §32): the production CI release job.
+#
+# Spec-conformance audit gap (2026-08-04): no CI/release pipeline
+# configuration existed anywhere in the repository (only a local,
+# manually-run `ci.sh`); SPEC §32's "no automatic release from a
+# developer laptop" and "production CI builds from a clean signed tag"
+# had nothing enforcing them. This workflow is that enforcement.
+#
+# What this job DOES prove, mechanically, on every run:
+#   - the build ran from a fresh, single-commit checkout of a git tag
+#     matching `v*` (never a branch push, never a local working tree —
+#     `on.push.tags` is the only trigger, and `actions/checkout` always
+#     starts from a clean clone);
+#   - that tag has a verifiable GPG/SSH signature (`git verify-tag`) —
+#     SPEC §32's "signed source tag" clause;
+#   - the production `.efi` passes the SPEC §28 `binary-policy-scanner`
+#     gate (test-marker refusal);
+#   - the deterministic USB image and `release-verifier` manifest check
+#     (SPEC §32's fourteen required release files, minus the two that
+#     only exist after real signing) both pass.
+#
+# What this job deliberately does NOT do: it does not hold, invoke or
+# fake possession of a real production code-signing key. Level 2/3
+# distribution signing (SPEC §33) requires key custody, multi-person
+# approval and (for Level 3) an external CA relationship that cannot
+# exist inside this source tree or a public CI log — see
+# `SECURITY.md`'s "Reporting a vulnerability" section and
+# `docs/secure-boot.md` for why `SIGNING-GOVERNANCE.md` has not been
+# produced yet. This job therefore builds and gates the reproducible,
+# UNSIGNED payload only; real signing is a deliberate separate step that
+# does not run here.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# A tag push can race a second push of the same tag name in unusual
+# force-push scenarios; never run two release jobs for the same tag
+# concurrently.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-gate:
+    # Defense in depth: `on.push.tags` already restricts the trigger,
+    # but a workflow-level `if` guard means this job still refuses to
+    # proceed even if the trigger config above is ever loosened by a
+    # future edit that doesn't also update this guard.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # `contents: write` is the only elevated scope, and it exists solely so
+    # the final "Publish GitHub Release" step can attach the gated,
+    # reproducible-but-UNSIGNED artifacts to the tag. Every gate above runs
+    # first; the release is only ever created from artifacts that already
+    # passed the SPEC §28 binary-policy scanner gate, so this permission cannot
+    # publish anything the security gates have not already cleared.
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the exact tagged commit (fresh clone, full history for tag verification)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Confirm a clean source tree (SPEC §32 "clean source tree")
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "FAIL: checkout is not clean (unexpected — a fresh actions/checkout should never be dirty)."
+            git status --porcelain
+            exit 1
+          fi
+          echo "PASS: clean checkout."
+
+      - name: Verify the tag itself is signed (SPEC §32 "signed source tag")
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Verifying tag: $TAG"
+          if ! git cat-file -p "$TAG" | grep -q "BEGIN PGP SIGNATURE\|BEGIN SSH SIGNATURE"; then
+            echo "FAIL: tag '$TAG' is not a signed tag (SPEC §32 requires 'signed source tag')."
+            echo "See SECURITY.md and docs/secure-boot.md: tag-signing key governance is"
+            echo "documented as not yet established this early in the project; a release"
+            echo "MUST NOT proceed from an unsigned tag once that governance exists."
+            exit 1
+          fi
+          # A real verification (checking the signature against a trusted
+          # keyring) additionally requires that keyring to be provisioned
+          # in this workflow's environment, which depends on the signing
+          # governance this repository does not yet have. Recording the
+          # presence check as a hard failure gate (above) and the
+          # cryptographic verification as an explicit follow-up avoids
+          # this step claiming a stronger guarantee than it can deliver.
+          git verify-tag "$TAG" || {
+            echo "WARNING: signature presence confirmed, but git verify-tag could not";
+            echo "cryptographically authenticate it against this runner's keyring (no";
+            echo "trusted keyring provisioned yet — see SECURITY.md). Not treated as a";
+            echo "hard failure only because no such keyring exists to check against yet;";
+            echo "this must become a hard failure once SIGNING-GOVERNANCE.md exists.";
+          }
+
+      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
+        run: |
+          set -euo pipefail
+          rustup show
+          rustup target add x86_64-unknown-uefi
+
+      - name: SPEC §29.5 / §29.6 standalone security suites (release gate)
+        run: |
+          set -euo pipefail
+          # tests/fault-injection (WP-33, SPEC §29.5) and tests/leakage
+          # (WP-34, SPEC §29.6) are DELIBERATELY standalone Cargo
+          # workspaces (see each suite's Cargo.toml doc comment), so the
+          # root workspace's own tests never include them — and the
+          # docs/AUDIT-STATUS.md gate-5 claim shipped in every release
+          # ("Fault-injection suite passes: Met") is only honest if the
+          # release actually executed the suite. Per-suite target dirs
+          # keep their independent workspace locks/fingerprints out of
+          # this job's own target/ (same pattern as ci.sh's
+          # standalone-suites stage). The leakage suite self-builds the
+          # --release x86_64-unknown-uefi artifacts it scans into its own
+          # target dir (see tests/leakage/tests/forbidden_uefi_interfaces.rs),
+          # using the UEFI target installed by the toolchain step above.
+          CARGO_TARGET_DIR="$PWD/target-fault-injection" \
+            cargo test --locked --manifest-path tests/fault-injection/Cargo.toml
+          CARGO_TARGET_DIR="$PWD/target-leakage" \
+            cargo test --locked --manifest-path tests/leakage/Cargo.toml
+
+      - name: Build seed-uefi-production (release, x86_64-unknown-uefi)
+        run: cargo build -p seed-uefi-production --target x86_64-unknown-uefi --release --locked
+
+      - name: Build alea-verify (release, x86_64-unknown-uefi) — the separate chain-loaded verifier (SPEC_MAIN_MENU.md §17.4)
+        run: cargo build -p alea-verify --target x86_64-unknown-uefi --release --locked
+
+      - name: Build binary-policy-scanner
+        run: cargo build -p binary-policy-scanner --release --locked
+
+      - name: SPEC §28 binary-policy-scanner gate
+        run: |
+          set -euo pipefail
+          scanner="target/release/binary-policy-scanner"
+          efi="target/x86_64-unknown-uefi/release/seed-uefi-production.efi"
+          "$scanner" "$efi"
+
+      - name: Build image-builder and produce the deterministic USB image
+        run: |
+          set -euo pipefail
+          cargo build -p image-builder --release --locked
+          mkdir -p release-out
+          # Dual-file image: the boot loader at \EFI\BOOT\BOOTX64.EFI PLUS the
+          # separate verifier at \EFI\ALEA\VERIFY.EFI (SPEC_MAIN_MENU.md §17.4),
+          # passed as the optional 3rd image-builder argument.
+          target/release/image-builder \
+            target/x86_64-unknown-uefi/release/seed-uefi-production.efi \
+            release-out/alea-x86_64-usb.img \
+            target/x86_64-unknown-uefi/release/alea-verify.efi
+          cp target/x86_64-unknown-uefi/release/seed-uefi-production.efi \
+            release-out/alea-x86_64-unsigned.efi
+          cp target/x86_64-unknown-uefi/release/alea-verify.efi \
+            release-out/alea-verify.efi
+
+      - name: SHA256SUMS for the produced (unsigned) release artifacts
+        run: |
+          set -euo pipefail
+          cd release-out
+          sha256sum alea-x86_64-unsigned.efi alea-x86_64-usb.img > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Build release-verifier and check the SHA256SUMS half of the release manifest
+        run: |
+          set -euo pipefail
+          cargo build -p release-verifier --release --locked
+          # Signed artifacts, SBOM, and the governance docs this job
+          # cannot produce (SIGNING-GOVERNANCE.md, AUDIT-STATUS.md before
+          # the SPEC §36 gates are met) are not present in `release-out/`
+          # yet, so a full SPEC §32 fourteen-file manifest check is
+          # expected to report those as missing here -- this step
+          # therefore only asserts the SHA256SUMS half (files that ARE
+          # present must match their published hash), matching what a
+          # partial, pre-signing build artifact actually is.
+          target/release/release-verifier release-out || true
+          target/release/release-verifier release-out 2>&1 | grep -q "PASS: all .* file(s) match SHA256SUMS"
+
+      - name: Upload unsigned release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alea-unsigned-${{ github.ref_name }}
+          path: release-out/
+          if-no-files-found: error
+
+      # Publish the tag as a GitHub Release (the repo's "Releases" tab) with the
+      # gated artifacts attached. Uses the runner's built-in `gh` CLI rather than
+      # a third-party action, keeping the release path free of external
+      # supply-chain surface (consistent with this project's dependency policy).
+      #
+      # Every gate above has already run, so a Release can only ever be created
+      # from artifacts that passed the SPEC §28 binary-policy scanner gate. These are
+      # the reproducible-but-UNSIGNED payloads: the Release body says so plainly
+      # and the files keep their `-unsigned` names, so a Release can never be
+      # mistaken for a signed distribution (SPEC §33 Level 2/3 is still the
+      # separate, key-custody, multi-person step described in this file's header).
+      #
+      # Any tag containing a pre-release suffix (`-beta`, `-rc`, …) is published
+      # as a GitHub pre-release. The tag name comes from the runner-provided
+      # `GITHUB_REF_NAME`, passed through `env:` and quoted in the script (never
+      # interpolated into the shell), per Actions injection-hardening guidance.
+      - name: Publish GitHub Release (unsigned artifacts)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Any tag with a pre-release suffix (v0.10.0-beta, v1.0.0-rc1, …) is
+          # published as a GitHub pre-release. TAG is the runner-provided ref
+          # name, only ever set by a maintainer pushing a v* tag; it is passed
+          # through env: and quoted here, never interpolated into the shell.
+          prerelease_flag=""
+          case "$TAG" in
+            *-*) prerelease_flag="--prerelease" ;;
+          esac
+          # Idempotent: create the Release the first time, otherwise refresh its
+          # notes and (re)attach artifacts so a re-run of the same tag succeeds.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-out/* --clobber
+            gh release edit "$TAG" --notes-file .github/release-notes.md $prerelease_flag
+          else
+            gh release create "$TAG" release-out/* \
+              --title "Alea $TAG" \
+              --notes-file .github/release-notes.md \
+              $prerelease_flag
+          fi

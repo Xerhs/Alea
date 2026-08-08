@@ -1,0 +1,60 @@
+
+# cargo-vet audits file
+
+[criteria.provenance-verified]
+description = """
+The published crates.io release was cross-checked to match the authentic
+upstream author's published source, and the crate was confirmed to be authored
+and published by its expected maintainer (authorship / provenance verification).
+This is NOT a full security audit and does NOT imply safe-to-deploy: it records
+only that the shipped bytes correspond to a known author's source of record.
+"""
+
+[[audits.cmov]]
+who = "Alea maintainer"
+criteria = "provenance-verified"
+version = "0.5.4"
+notes = """
+Constant-time conditional-move (cmov) helper on the production secp256k1 / k256
+path. crates.io 0.5.4 provenance verified authentic and published by RustCrypto
+(tarcieri) in the 2026-08-05 re-audit (docs/AUDIT-STATUS.md). Provenance /
+authorship check only — not a full security audit; safe-to-deploy remains
+exempted pending the SPEC §31/§36.2 external review.
+"""
+
+[[audits.cpubits]]
+who = "Alea maintainer"
+criteria = "provenance-verified"
+version = "0.1.1"
+notes = """
+Low-level CPU word-size / bit helper pulled into the production secp256k1 / k256
+path. crates.io 0.1.1 provenance verified authentic and published by RustCrypto
+(tarcieri) in the 2026-08-05 re-audit (docs/AUDIT-STATUS.md). Provenance /
+authorship check only — not a full security audit; safe-to-deploy remains
+exempted pending the SPEC §31/§36.2 external review.
+"""
+
+[[audits.ctutils]]
+who = "Alea maintainer"
+criteria = "provenance-verified"
+version = "0.4.2"
+notes = """
+Constant-time utility helpers on the production secp256k1 / k256 path. crates.io
+0.4.2 provenance verified authentic and published by RustCrypto (tarcieri) in
+the 2026-08-05 re-audit (docs/AUDIT-STATUS.md). Provenance / authorship check
+only — not a full security audit; safe-to-deploy remains exempted pending the
+SPEC §31/§36.2 external review.
+"""
+
+[[audits.wnaf]]
+who = "Alea maintainer"
+criteria = "provenance-verified"
+version = "0.14.0"
+notes = """
+Windowed non-adjacent-form (wNAF) scalar-multiplication helper on the production
+secp256k1 / k256 path. crates.io 0.14.0 provenance verified authentic and
+published by RustCrypto (tarcieri) in the 2026-08-05 re-audit
+(docs/AUDIT-STATUS.md). Provenance / authorship check only — not a full security
+audit; safe-to-deploy remains exempted pending the SPEC §31/§36.2 external
+review.
+"""

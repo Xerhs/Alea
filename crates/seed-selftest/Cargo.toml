@@ -1,0 +1,34 @@
+[package]
+name = "seed-selftest"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# STEP C (SPEC §11.6): the thirteen-bullet aggregate cryptographic
+# self-test used to live inside `seed-flow` (a UI-layer crate) even
+# though every bullet it runs validates `seed-core`/`seed-derive`/
+# `seed-protocol` primitives directly, nothing UI-specific. The natural
+# home for it is `seed_core::self_test` (SPEC §11.6 is a `seed-core`-
+# level guarantee), but that is not possible without creating a real
+# dependency cycle: this self-test needs BOTH `seed-derive` (bip32,
+# curve KATs) and `seed-protocol` (state-machine, transcript, physical-
+# session KATs), and both of those crates already depend on `seed-core`
+# (see their own `Cargo.toml`s) -- adding either one back as a
+# `seed-core` dependency would make Cargo reject the whole workspace
+# with a cyclic-package-dependency error, not merely produce bad
+# layering.
+#
+# This tiny crate exists solely to give the self-test a home with no
+# dependency-direction conflict: every crate it exercises (`seed-core`,
+# `seed-derive`, `seed-protocol`) is strictly upstream of it, and none of
+# them depend back on this crate, so no cycle is possible. It replaces
+# `crates/seed-flow/src/self_test.rs` verbatim (same thirteen KATs, same
+# pass/fail behavior, same expected-value constants) — `seed-flow`'s own
+# `CryptoSelfTestGate` (`firmware_wiring::ProdCryptoSelfTestGate::check`)
+# is now a thin adapter calling this crate instead of defining the KATs
+# itself.
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-derive = { path = "../seed-derive" }
+seed-protocol = { path = "../seed-protocol" }

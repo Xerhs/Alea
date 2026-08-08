@@ -1,0 +1,61 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "mixed_dice_coins_12w_case2",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "04050601020304050601"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "01000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001008000010018021000000a040506010203040506011100007301000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001",
+      "final_entropy_hex": "5ff5ce2afc54a2856021e246fca2ec18",
+      "mnemonic_indexes": [
+        767,
+        1395,
+        1109,
+        1989,
+        593,
+        533,
+        1028,
+        482,
+        567,
+        1832,
+        1496,
+        394
+      ],
+      "mnemonic_words": [
+        "garment",
+        "purpose",
+        "melt",
+        "weather",
+        "enforce",
+        "dress",
+        "letter",
+        "detail",
+        "eight",
+        "topic",
+        "roast",
+        "course"
+      ],
+      "bip39_seed_hex": "dbdcdf6772f207446ddead3d3a8bcbb4c4db064f85c42a17808538ecaf1b948af69fe2a064528927b3a981b03bcc35a18451e4b7ddc7eda5ee0168d7bf43125c",
+      "master_fingerprint_hex": "69f01c26",
+      "addresses": {
+        "bip44": "1LPNW5ufVuMaQ7wE9owpLeZBEDsZDGhVKW",
+        "bip49": "3AkaCfoga1SEfRMxzo5UbPqeFEKgvocqNM",
+        "bip84": "bc1q3a67mn8zstu4hc0lquwyf654nca38s884jqcws",
+        "bip86": "bc1p44a9kjwdasrtu98s8cl4tdurl0zndzgftvnf73lk5z9v9dxlzmks8xhrug"
+      }
+    }
+  ]
+}

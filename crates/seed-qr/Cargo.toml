@@ -1,0 +1,11 @@
+[package]
+name = "seed-qr"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# `#![no_std]`, no `alloc`, no dependencies (SPEC §31): this crate is a
+# self-contained re-implementation of the QR Code (ISO/IEC 18004) encoding
+# algorithm restricted to byte mode, EC level M and versions 1..=13.
+[dependencies]

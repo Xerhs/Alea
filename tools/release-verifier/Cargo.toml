@@ -1,0 +1,33 @@
+[package]
+# WP-32 (SPEC §10, §31, §32): release-verifier — SHA256SUMS + minisign
+# signature verification for an Alea release directory.
+# Host-only tool; never part of the production UEFI dependency graph
+# (see root Cargo.toml comment on `seed-uefi-production`'s dependency
+# edges — this crate is not one of them).
+name = "release-verifier"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+publish = false
+
+[lib]
+name = "release_verifier"
+path = "src/lib.rs"
+
+[[bin]]
+name = "release-verifier"
+path = "src/main.rs"
+
+[dependencies]
+# Reuses the workspace-pinned, already-reviewed `sha2` dependency (SPEC
+# §3 table, root `Cargo.toml`) rather than adding a new one (SPEC §31:
+# dependencies MUST be minimal and pinned). No extra features requested:
+# the streaming `Sha256` digest needs neither `alloc` nor `oid`.
+sha2 = { workspace = true }
+
+[dev-dependencies]
+# Same workspace-pinned `sha2` used by the crate itself (see the
+# `[dependencies]` comment above) — reused here only to build
+# self-consistent `SHA256SUMS` fixtures in the CLI exit-code regression
+# test (`tests/cli_exit_codes.rs`); not a new dependency addition.
+sha2 = { workspace = true }

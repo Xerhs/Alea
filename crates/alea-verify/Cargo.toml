@@ -1,0 +1,69 @@
+[package]
+name = "alea-verify"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# SLICE 5 (SPEC_MAIN_MENU.md §17.4 landing item 2 target). The
+# isolation-preserving piece of Option B: the cross-device VERIFICATION
+# surface (SPEC_COMPAT.md / SPEC_COMPAT_ENTROPY.md) is shipped as its OWN
+# `#![no_std] #![no_main]` UEFI binary whose dependency graph carries
+# `seed-compat`, so `seed-uefi-production` NEVER links that crate (the
+# authoritative isolation guarantee is the dependency graph, SPEC_COMPAT §9,
+# verified by `cargo tree -p seed-uefi-production`). The production launcher
+# chain-loads this .efi for item 2 rather than linking the compat code in.
+#
+# CRITICAL: this crate MUST NOT be added to `seed-uefi-production`'s
+# `[dependencies]`, and `seed-uefi-production` MUST NOT be added here.
+# Workspace *membership* is not a dependency edge; the two binaries share
+# nothing but the edition-neutral no_std library crates below.
+#
+# Unlike `seed-uefi-production` (which is `#![no_std]` with NO alloc), this
+# crate MAY allocate: the ported compat/entropy/custom-path UI loops use
+# `String`/`Vec`/`format!`. The allocator is the one the `uefi` crate itself
+# provides — enabling its `global_allocator` feature installs
+# `#[global_allocator] static ALLOCATOR: uefi::allocator::Allocator` (see
+# `uefi-0.39.0/src/helpers/global_allocator.rs`), which is backed by the
+# UEFI boot-services pool allocator and needs no explicit init beyond the
+# system table `#[entry]` already establishes. The `panic_handler` uefi
+# feature is deliberately NOT enabled — this crate defines its own
+# `#[panic_handler]` (see `src/main.rs`).
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-derive = { path = "../seed-derive" }
+seed-compat = { path = "../seed-compat" }
+seed-flow = { path = "../seed-flow" }
+seed-gop-ui = { path = "../seed-gop-ui", features = ["uefi-backend"] }
+seed-platform-x86 = { path = "../seed-platform-x86" }
+zeroize = { workspace = true }
+
+# `uefi`'s `alloc`/`global_allocator` features are UEFI-target-only (Task 19
+# review fix, host-testable lib split, `src/lib.rs`): `verify.rs`/
+# `custom_path.rs`/`markers.rs` never name `uefi::` directly (grep confirms
+# it), so the library target these tests exercise does not need this
+# dependency at all on the host target -- and critically must NOT get it,
+# because `global_allocator` installs `uefi::allocator::Allocator` as the
+# process-wide `#[global_allocator]`, which calls real UEFI boot-services
+# pool-allocation protocols that do not exist on a host test binary
+# (confirmed: `cargo test -p alea-verify --lib` aborted with "memory
+# allocation of 24 bytes failed" before this was split out). Scoping it to
+# `cfg(target_os = "uefi")` keeps the real `.efi` build byte-for-byte
+# unaffected (same features, same allocator) while letting the host test
+# binary fall back to its own ordinary host allocator.
+#
+# FEATURE-UNIFICATION SAFETY (do not weaken): this crate turns ON the uefi
+# `alloc`/`global_allocator` features on the UEFI target; `seed-uefi-
+# production` turns them OFF there (it is no_std/no-alloc and installs its
+# own panic handler with no global allocator). Cargo would UNIFY features
+# across any single build that pulls in both crates for the same target --
+# which would silently give production a global allocator it must never
+# carry. This is safe ONLY because EVERY `x86_64-unknown-uefi` build in
+# ci.sh is `-p`-scoped to exactly one binary (`cargo build -p
+# seed-uefi-production ...` / `-p alea-verify ...`), never `cargo build
+# --workspace --target x86_64-unknown-uefi`. Feature unification is
+# per-invocation, so the two never share a feature resolution. DO NOT add a
+# `--workspace` UEFI-target build, and DO NOT add `alea-verify` to
+# `seed-uefi-production`'s dependencies.
+[target.'cfg(target_os = "uefi")'.dependencies]
+uefi = { workspace = true, features = ["alloc", "global_allocator"] }

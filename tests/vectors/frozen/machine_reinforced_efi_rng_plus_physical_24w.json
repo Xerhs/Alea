@@ -1,0 +1,90 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "machine_reinforced_efi_rng_plus_physical_24w",
+      "sources": [
+        {
+          "tag": "0x01",
+          "algo": "TEST-EFI-RNG",
+          "bytes_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a"
+        },
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000101000001001903010c544553542d4546492d524e4700200714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a1000003c050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304050601020304110000500100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100",
+      "final_entropy_hex": "9bcaed3806678b6d2b6d839d6e7526ff7df3c09a8de5b9347ccd967c82544c42",
+      "mnemonic_indexes": [
+        1246,
+        699,
+        624,
+        102,
+        965,
+        1460,
+        1389,
+        1411,
+        1259,
+        925,
+        589,
+        2039,
+        1785,
+        1794,
+        849,
+        1509,
+        1481,
+        1311,
+        411,
+        359,
+        1601,
+        337,
+        392,
+        542
+      ],
+      "mnemonic_words": [
+        "orange",
+        "first",
+        "evoke",
+        "art",
+        "judge",
+        "repair",
+        "pumpkin",
+        "race",
+        "output",
+        "inhale",
+        "endless",
+        "year",
+        "tennis",
+        "theory",
+        "health",
+        "royal",
+        "rice",
+        "physical",
+        "cricket",
+        "coconut",
+        "sight",
+        "clay",
+        "country",
+        "duck"
+      ],
+      "bip39_seed_hex": "bde32def4998e5991b19ba39a300b561fd8dede58e8f71799ae8923ae0f98eb2414c1635eb924b55a30d2d1b6781880b592bd3b0b35d258c752bb1b9daff64f1",
+      "master_fingerprint_hex": "6a9bc8f7",
+      "addresses": {
+        "bip44": "1Ep26tH1EjzsGZh4wF7bKETTXbcGWuzTV4",
+        "bip49": "3MGcEnN28txxvLFqJEmNm5MjajRcdGCFxj",
+        "bip84": "bc1qq5qh2w684jdk59y2r2jhsk4vxs423qaxt9svnr",
+        "bip86": "bc1pjujcgv0c7p39nghzmc9lruj9p0484qvematl87fmh3lrex455k8qrey8mt"
+      }
+    }
+  ]
+}

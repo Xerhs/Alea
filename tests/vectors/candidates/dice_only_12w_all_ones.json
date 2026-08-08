@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_12w_all_ones",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001000801100000320101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+      "final_entropy_hex": "cac1cf1008b19ca6f51d549c533e2e1e",
+      "mnemonic_indexes": [
+        1622,
+        115,
+        1568,
+        139,
+        206,
+        667,
+        1699,
+        1364,
+        1250,
+        1231,
+        1116,
+        489
+      ],
+      "mnemonic_words": [
+        "skull",
+        "attack",
+        "series",
+        "badge",
+        "border",
+        "fat",
+        "stamp",
+        "pride",
+        "ordinary",
+        "okay",
+        "merit",
+        "diamond"
+      ],
+      "bip39_seed_hex": "0bb2a7695ab7faf2c36ee922d80c7c8e1efdfe69acaa98e9623609d54c319e9f9d95ff81e5832800f714b3f200de217e64588237fb2b826ca648844707546fc9",
+      "master_fingerprint_hex": "073980dd",
+      "addresses": {
+        "bip44": "1DUPmDdkQBe5XZURzYyCxtZNG3dHV9ejm3",
+        "bip49": "3LFVPzgtskgzuL9bBHhAq9oXrSKi8W6qNN",
+        "bip84": "bc1q8zg7yrrfsrxz0almea7manjrjyaj90pm4nzdpq",
+        "bip86": "bc1pw4r40d2t5lqygvkleg5ljuzqnr5dlqyupf4wulhe7efadz53uwqqp94naa"
+      }
+    }
+  ]
+}

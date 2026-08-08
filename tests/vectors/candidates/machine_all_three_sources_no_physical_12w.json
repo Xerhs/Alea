@@ -1,0 +1,66 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "machine_all_three_sources_no_physical_12w",
+      "sources": [
+        {
+          "tag": "0x01",
+          "algo": "TEST-EFI-RNG",
+          "bytes_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a"
+        },
+        {
+          "tag": "0x02",
+          "algo": "RDSEED64",
+          "bytes_hex": "0e1b2835424f5c697683909daab7c4d1deebf805121f2c394653606d7a8794a1"
+        },
+        {
+          "tag": "0x03",
+          "algo": "RDRAND",
+          "bytes_hex": "15222f3c49566370"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001000703010c544553542d4546492d524e4700200714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a0208524453454544363400200e1b2835424f5c697683909daab7c4d1deebf805121f2c394653606d7a8794a10306524452414e44000815222f3c49566370",
+      "final_entropy_hex": "f742d167ec2cf215297b2831dd6bc6f0",
+      "mnemonic_indexes": [
+        1978,
+        180,
+        719,
+        1730,
+        1657,
+        84,
+        1327,
+        808,
+        398,
+        1882,
+        1933,
+        1792
+      ],
+      "mnemonic_words": [
+        "warrior",
+        "bird",
+        "fly",
+        "success",
+        "song",
+        "appear",
+        "planet",
+        "govern",
+        "crack",
+        "twice",
+        "vast",
+        "theme"
+      ],
+      "bip39_seed_hex": "9969c56c19f38866eac1622f0db6749e8eeed6a19baaa300c69832c677944470f2a8764f2bd1edb9e0b438ded2a9a39a16d66599a7c8956b292b6029e29a3158",
+      "master_fingerprint_hex": "40d482d9",
+      "addresses": {
+        "bip44": "18Hcgfw5sfuVWqMn9WY9VAJr27qe7fKTXM",
+        "bip49": "3Ng36o6ij4WtyiKL4CMNZNzBQ8izrEa1fw",
+        "bip84": "bc1qkktcjzsa7wn2axph0yra5y53d4xnkhnq8u0x68",
+        "bip86": "bc1prtrmk2x6n6aj9x620zw5cxtxpja5pgy3wcsas4864pd06vmtsf2seyne6l"
+      }
+    }
+  ]
+}

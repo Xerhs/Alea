@@ -1,0 +1,44 @@
+[package]
+name = "seed-uefi-production"
+version = "0.10.0-beta"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# CRITICAL (SPEC §9, §28): this crate MUST NOT depend on `seed-uefi-test`,
+# `seed-desktop-test` or `seed-test-vectors`, directly or transitively.
+# Verify with `cargo tree -p seed-uefi-production` (see ci.sh).
+#
+# `seed-flow` (WP-25/26's host-testable pre-secret/secret-phase flow
+# logic) is reused verbatim here — it lives at the top-level, edition-
+# neutral `crates/seed-flow/` path (see that crate's own doc comment: it
+# used to be nested inside `crates/seed-uefi-test/flow/`, which meant
+# this manifest's own dependency path physically crossed into the test
+# edition's directory tree; it was moved out specifically to remove that
+# landmine structurally). It is a *separate*, `no_std`, non-`no_main`
+# library crate with no dependency on `uefi` or `seed-test-vectors`
+# anywhere in its own non-dev dependency graph; its one
+# `seed-test-vectors` reference is a `[dev-dependencies]` entry, which
+# Cargo never builds for a crate that merely depends on `seed-flow` as a
+# library — only for `cargo test -p seed-flow` itself. WP-27 (this
+# crate) depends on it WITHOUT enabling its `test-edition` feature (see
+# that crate's `Cargo.toml`), and provides its own production-only
+# real-firmware provider wiring in `src/flow_pre/` and `src/flow_secret/`
+# (mirroring, but never importing,
+# `crates/seed-uefi-test/src/{flow_pre,flow_secret}/` — those remain
+# WP-25/26's owned files).
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-protocol = { path = "../seed-protocol" }
+seed-derive = { path = "../seed-derive" }
+seed-platform-x86 = { path = "../seed-platform-x86" }
+seed-gop-ui = { path = "../seed-gop-ui", features = ["uefi-backend"] }
+seed-flow = { path = "../seed-flow" }
+# SPEC §11.6 aggregate crypto KAT, surfaced read-only by the §17.3 item-4
+# self-check screen (`src/launcher.rs::render_selfcheck`). Already in this
+# crate's graph transitively via `seed-flow`; named directly here only so
+# the launcher can invoke `run_aggregate_self_test`. NOT a test crate (the
+# forbidden set is seed-uefi-test / seed-desktop-test / seed-test-vectors),
+# so `ci.sh`'s forbidden-dependency gate is unaffected.
+seed-selftest = { path = "../seed-selftest" }
+uefi = { workspace = true }

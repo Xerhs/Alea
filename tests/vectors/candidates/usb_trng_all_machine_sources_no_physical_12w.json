@@ -1,0 +1,71 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_all_machine_sources_no_physical_12w",
+      "sources": [
+        {
+          "tag": "0x01",
+          "algo": "TEST-EFI-RNG",
+          "bytes_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a"
+        },
+        {
+          "tag": "0x02",
+          "algo": "RDSEED64",
+          "bytes_hex": "0e1b2835424f5c697683909daab7c4d1deebf805121f2c394653606d7a8794a1"
+        },
+        {
+          "tag": "0x03",
+          "algo": "RDRAND",
+          "bytes_hex": "15222f3c49566370"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001002704010c544553542d4546492d524e4700200714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a0208524453454544363400200e1b2835424f5c697683909daab7c4d1deebf805121f2c394653606d7a8794a10306524452414e44000815222f3c4956637012145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "7acd9e6261b67fa0a89cc2e350c991a9",
+      "mnemonic_indexes": [
+        982,
+        871,
+        1220,
+        1563,
+        831,
+        1666,
+        1299,
+        1218,
+        1818,
+        1074,
+        803,
+        664
+      ],
+      "mnemonic_words": [
+        "kiss",
+        "hollow",
+        "obtain",
+        "sell",
+        "gun",
+        "space",
+        "pen",
+        "obscure",
+        "today",
+        "main",
+        "good",
+        "fantasy"
+      ],
+      "bip39_seed_hex": "dc285fe95d14b334413f2892c392ae197ec8ad29158ab390b05e9542fa7bd754b9a9bc4df1f99cb6caf5f833ac114b242fbb48993654ae38cf09c71a82229a6c",
+      "master_fingerprint_hex": "51546e5a",
+      "addresses": {
+        "bip44": "1P8qCsW25mTfumtcFaENcsrQZshLZwvbmT",
+        "bip49": "3679hzNXjoE1CS6EPNrynx4UpsUWWKM56V",
+        "bip84": "bc1qaeahl94px0e5gw8zveu9k0hqlfed4aggrm0a6l",
+        "bip86": "bc1p4tpzleamzv4fmplqqmunjvg6jjux9lvlzpuwfcu45wpnft7r0cesv4nfrv"
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "machine_efi_rng_only_12w",
+      "sources": [
+        {
+          "tag": "0x01",
+          "algo": "TEST-EFI-RNG",
+          "bytes_hex": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001000101010c544553542d4546492d524e4700200714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a",
+      "final_entropy_hex": "fb626f014f17ac2feab18415fa5b4e12",
+      "mnemonic_indexes": [
+        2011,
+        155,
+        1538,
+        1265,
+        982,
+        191,
+        1366,
+        388,
+        175,
+        1686,
+        1692,
+        289
+      ],
+      "mnemonic_words": [
+        "window",
+        "beach",
+        "scare",
+        "owner",
+        "kiss",
+        "blood",
+        "print",
+        "correct",
+        "bicycle",
+        "spot",
+        "squeeze",
+        "category"
+      ],
+      "bip39_seed_hex": "bd3ff20e84fbc9b96f53b372b45d2f0b08cd73c4e9bc05c069a5dc9d73d9d9046f504c47df9a8251bbd5bb120335bae0203974918297fec0da19eb523a949dbf",
+      "master_fingerprint_hex": "7d496cab",
+      "addresses": {
+        "bip44": "1FbfZWFqNXVSpisHay41r9E4fWckGaZqBs",
+        "bip49": "3NTutmhYdEdsnM2s6UKXof15QkwNYKsuoc",
+        "bip84": "bc1qt68jmes0tjyl8e223696hwfyxfnhl9cnykjrgd",
+        "bip86": "bc1pfwe6typ0u3clcam98wynv2gaur823l2sm2ae95d32elr89r66fqqqgh8g7"
+      }
+    }
+  ]
+}

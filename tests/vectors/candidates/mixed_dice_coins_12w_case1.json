@@ -1,0 +1,61 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "mixed_dice_coins_12w_case1",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "010203040506010203040506010203040506010203040506010203040506"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001008000010018021000001e010203040506010203040506010203040506010203040506010203040506110000320001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001",
+      "final_entropy_hex": "57bfa026c7c4d1ed2569a2e3ec6a6640",
+      "mnemonic_indexes": [
+        701,
+        2024,
+        77,
+        1148,
+        616,
+        1972,
+        1197,
+        418,
+        1823,
+        794,
+        1228,
+        1033
+      ],
+      "mnemonic_words": [
+        "fish",
+        "wonder",
+        "answer",
+        "moon",
+        "escape",
+        "walk",
+        "noble",
+        "crowd",
+        "token",
+        "globe",
+        "office",
+        "license"
+      ],
+      "bip39_seed_hex": "d022674fa40082c2593f1f35b5552eb533a97913bcc1ad356869274774259f4bd799876bb6f5522bb27975c790189a8ec066d296a44af898124b4590121170f9",
+      "master_fingerprint_hex": "93dc8940",
+      "addresses": {
+        "bip44": "12TYn6F8WqofZySdgTaskJvmuJhSSZdGAL",
+        "bip49": "35BMKf2iLLAphfobRPKP8UtWUDvAMkmW5y",
+        "bip84": "bc1qkya0qe57udx2p3dcnyeq94pz4ajdns2w8swvey",
+        "bip86": "bc1pcswn3gnt9523eh37vessquk64t9cvpjex09hun2atyt8cfrxh26stplhtw"
+      }
+    }
+  ]
+}

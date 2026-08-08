@@ -1,0 +1,81 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/seed-core",
+    "crates/seed-protocol",
+    "crates/seed-qr",
+    "crates/seed-derive",
+    "crates/seed-compat",
+    "crates/seed-platform-x86",
+    "crates/seed-uefi-production",
+    "crates/alea-verify",
+    "crates/seed-uefi-test",
+    "crates/seed-flow",
+    "crates/seed-selftest",
+    "crates/seed-gop-ui",
+    "crates/seed-desktop-test",
+    "crates/seed-test-vectors",
+    "crates/seed-compat-vectors",
+    "tools/image-builder",
+    "tools/media-readback-verifier",
+    "tools/binary-policy-scanner",
+    "tools/release-verifier",
+    "tools/compat-verify",
+]
+
+# SPEC §9 repository layout; SPEC §31 dependency policy (minimal, pinned,
+# license/no_std/allocation reviewed before inclusion).
+#
+# `seed-uefi-production` MUST NOT depend on `seed-uefi-test`,
+# `seed-desktop-test` or `seed-test-vectors` (SPEC §9, §28). Workspace
+# *membership* is not a dependency edge; verify the real graph with
+# `cargo tree -p seed-uefi-production` (see ci.sh).
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# ---------------------------------------------------------------------------
+# Pinned third-party dependencies (SPEC §31: exact version pinning, license
+# review, no_std review, default-feature review — recorded here so the 30+
+# downstream agents never re-decide versions). Versions were the current
+# stable releases on crates.io as of 2026-08-04; do not bump without an
+# orchestrator-level dependency-approval commit.
+# ---------------------------------------------------------------------------
+[workspace.dependencies]
+# SHA-256/512 (SPEC §13, §11.6). default-features=false drops the `alloc`+
+# `oid` defaults — no_std, no_alloc. `zeroize` wipes the digest's internal
+# block/state buffer on drop (SPEC §20.3) — additive, does not affect output.
+sha2 = { version = "=0.11.0", default-features = false, features = ["zeroize"] }
+# HMAC (SPEC §13, used for HMAC-SHA512 in BIP32 and the PBKDF2 PRF).
+# `zeroize` wipes the ipad/opad/inner-digest state on drop (SPEC §20.3).
+hmac = { version = "=0.13.0", default-features = false, features = ["zeroize"] }
+# PBKDF2 (SPEC §13, §14: PBKDF2-HMAC-SHA512, 2048 iterations). The `sha2`
+# feature pulls in `hmac`+`sha2` for us without alloc. pbkdf2 0.13 exposes no
+# `zeroize` feature of its own; its internal HMAC/SHA-2 state is the same
+# (feature-unified) `hmac`/`sha2` instances scrubbed via those crates' own
+# `zeroize` feature enabled above.
+pbkdf2 = { version = "=0.13.0", default-features = false, features = ["sha2"] }
+# RIPEMD-160 (SPEC §13, §24: hash160 = ripemd160(sha256(x))).
+ripemd = { version = "=0.2.0", default-features = false }
+# secp256k1, constant-time arithmetic only (SPEC §13, §24, §31: reviewed
+# third-party curve implementation preferred over project-owned).
+#
+# INFO / supply-chain TODO (audit, no dependency change): k256 0.14.0 pulls
+# four ECC-path transitive crates published after this toolchain's review
+# cutoff — `cpubits` (0.1.1), `wnaf`, and `ctutils` (0.4.2) → `cmov`
+# (0.5.4). These sit directly on the constant-time scalar/point arithmetic
+# path, so before the SPEC §31 signed-release gate they MUST get an explicit
+# `cargo vet` ownership/audit entry (publisher provenance + a diff review of
+# the pinned versions), not just a version pin. This is tracked here only;
+# no crate is added, removed, or re-versioned by this note.
+k256 = { version = "=0.14.0", default-features = false, features = ["arithmetic"] }
+# Zeroization primitive (SPEC §20.3).
+zeroize = { version = "=1.9.0", default-features = false }
+# UEFI protocol bindings (SPEC §31), for platform/UEFI crates only.
+uefi = { version = "=0.39.0" }
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"

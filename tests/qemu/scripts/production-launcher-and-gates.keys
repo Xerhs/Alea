@@ -1,0 +1,73 @@
+# tests/qemu/scripts/production-launcher-and-gates.keys
+#
+# Production edition, driven from the SPEC_MAIN_MENU landing launcher.
+# Covers every screen that is REACHABLE under QEMU+OVMF.
+#
+# What is NOT reachable here, and why: SPEC §11.2 requires that "if obvious
+# virtualization is detected, production generation MUST be disabled". QEMU +
+# OVMF trips several of `seed_platform_x86::virt`'s indicators at once (the
+# CPUID hypervisor bit, the OVMF/QEMU firmware strings, the emulated PCI
+# display device), so Stage 2's mandatory gates fail closed with
+# "CANNOT CONTINUE / Virtualization indicators were detected on this platform"
+# and the ceremony stops there — correctly. Stages 2-7 (device, setup, entropy,
+# generate, mnemonic, re-entry, passphrase, verify, export, finish) therefore
+# cannot be photographed in emulation without defeating that gate, which this
+# harness deliberately does not do. Their pixels are captured host-side instead
+# by `tests/qemu/render-screens/`, which drives the SAME `seed-flow` render
+# functions into an in-memory framebuffer.
+#
+# Run:
+#   tests/qemu/drive-ceremony.py --image <...>/alea-x86_64-usb.img \
+#       --script tests/qemu/scripts/production-launcher-and-gates.keys --out <dir>
+
+DELAY 90
+
+ECHO landing launcher (SPEC_MAIN_MENU: 6 items)
+SHOT 01-landing-menu
+
+ECHO [3] Learn -> category landing
+KEY 3
+WAIT 1.5
+SHOT 02-learn-categories
+KEY 1
+WAIT 1.5
+SHOT 03-learn-page
+KEY ESC
+WAIT 1
+KEY ESC
+WAIT 1.5
+
+ECHO [4] Self-check (SPEC 11.6 cryptographic KAT)
+KEY 4
+WAIT 3
+SHOT 04-self-check
+KEY ESC
+WAIT 1.5
+
+ECHO [5] About / audit status
+KEY 5
+WAIT 1.5
+SHOT 05-about
+KEY ESC
+WAIT 1.5
+SHOT 06-back-on-landing
+
+ECHO [1] Generate -> Stage 1 PREPARE
+KEY 1
+WAIT 2
+SHOT 07-stage1-prepare-empty
+
+ECHO Stage 1: [1][2][3] tick the checklist
+KEY 1 2 3
+WAIT 1
+SHOT 08-stage1-prepare-checked
+
+ECHO Stage 1: [Enter] -> SPEC 11 mandatory gates
+KEY ENTER
+WAIT 5
+SHOT 09-gates-virtualization-refusal
+
+ECHO Refusal screen: [Esc] Exit before generation -> back to firmware
+KEY ESC
+WAIT 3
+SHOT 10-after-exit

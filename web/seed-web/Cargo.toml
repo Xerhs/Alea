@@ -1,0 +1,40 @@
+# seed-web — Alea Offline Web Edition WASM glue crate (SPEC_WEB_OFFLINE §7/§8).
+#
+# STANDALONE workspace. This `[workspace]` table makes this crate its OWN
+# workspace root so it is NOT pulled into ~/Seedmaker's root workspace (whose
+# `members` list is explicit and does not include web/). Building here never
+# touches the main workspace; `cargo test --workspace` / ci.sh at the repo root
+# are unaffected. (SPEC_WEB_OFFLINE §7 "net-new, none edits the existing crates".)
+[workspace]
+
+[package]
+name = "seed-web"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Hand-rolled, zero-import, no-wasm-bindgen glue (SPEC_WEB_OFFLINE §5.2 / OQ-W1:
+# "hand-rolled for v1"). Path-depends ONLY on the three Phase-1 crates
+# (seed-core + seed-derive + seed-compat) — NOT seed-protocol (M6/§7). These
+# crates inherit edition/license from the root ~/Seedmaker workspace, which is
+# where they are members; that inheritance resolves against their own workspace
+# root regardless of which workspace initiates the build.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+seed-core = { path = "../../crates/seed-core" }
+seed-derive = { path = "../../crates/seed-derive" }
+seed-compat = { path = "../../crates/seed-compat" }
+
+# SPEC_WEB_OFFLINE §5.2 normative reproducibility pins that are cargo-profile
+# flags: panic=abort (no unwinding tables), strip=symbols (no symbol names),
+# opt-level="s" (small; matches §2 smoke test). `-C strip` also via profile.
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "symbols"
+overflow-checks = true

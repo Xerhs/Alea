@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alea — air-gapped Bitcoin recovery-phrase generator</title>
+<meta name="description" content="Alea is an experimental, open-source UEFI application that generates BIP39 recovery words before any operating system loads — from your own dice, coins, or an approved machine source. It refuses machines it cannot reason about, by design.">
+<style>
+  :root{
+    --bg:#05080b; --panel:#0d1319; --rule:#1e2830;
+    --text:#e6edf3; --cap:#7a8794; --accent:#53d6e5; --accent-dim:#2e5b63;
+    --warn:#f2b94e; --ok:#57d98a; --danger:#f0625d;
+    --mono:ui-monospace,"Cascadia Mono","Cascadia Code",Consolas,"DejaVu Sans Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg);scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;color:var(--text);font:16px/1.65 var(--sans);
+       -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .wrap{max-width:940px;margin:0 auto;padding:0 22px}
+  code,kbd,.mono{font-family:var(--mono)}
+  h1,h2,h3{line-height:1.15;text-wrap:balance;font-weight:650}
+
+  /* experimental banner */
+  .exp{background:#1a1206;border-bottom:1px solid #6b4f1d;color:var(--warn);
+       font:600 13px/1.5 var(--mono);letter-spacing:.02em}
+  .exp .wrap{padding:10px 22px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .exp b{color:var(--warn)} .exp span{color:#d8c9a6;font-weight:400}
+
+  /* nav */
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;
+            padding:16px 22px;gap:16px}
+  .brand{font:650 18px/1 var(--mono);letter-spacing:.14em;color:var(--text)}
+  .brand .dot{color:var(--accent)}
+  nav ul{display:flex;gap:22px;list-style:none;margin:0;padding:0;
+         font:13px/1 var(--mono);letter-spacing:.06em}
+  nav ul a{color:var(--cap)} nav ul a:hover{color:var(--accent);text-decoration:none}
+  @media (max-width:620px){nav ul{display:none}}
+
+  /* hero */
+  header.hero{border-bottom:1px solid var(--rule);
+    background:radial-gradient(120% 90% at 50% -10%, #0b1620 0%, var(--bg) 60%)}
+  .hero .wrap{padding:70px 22px 60px}
+  .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;
+           color:var(--accent);margin:0 0 18px}
+  .hero h1{font-size:clamp(30px,5.4vw,52px);margin:0 0 20px;letter-spacing:-.01em}
+  .hero p.lede{font-size:clamp(17px,2.3vw,21px);color:#cdd6dd;max-width:60ch;margin:0 0 14px}
+  .hero p.sub{color:var(--cap);max-width:64ch;margin:0 0 30px}
+  .cta{display:flex;gap:14px;flex-wrap:wrap}
+  .btn{display:inline-block;padding:11px 20px;border-radius:7px;font:600 14px/1 var(--mono);
+       letter-spacing:.03em;border:1px solid var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#04181c;border-color:var(--accent)}
+  .btn:hover{text-decoration:none;filter:brightness(1.08)}
+  .btn.ghost{border-color:var(--rule);color:var(--text)}
+
+  /* terminal card */
+  .term{margin:36px 0 0;background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+        overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.4)}
+  .term .bar{display:flex;gap:7px;padding:11px 14px;border-bottom:1px solid var(--rule);
+             background:#0a1015}
+  .term .bar i{width:11px;height:11px;border-radius:50%;background:#2a343d;display:block}
+  .term .bar i:first-child{background:#3a4650}
+  .term pre{margin:0;padding:18px 18px 20px;font:13.5px/1.7 var(--mono);color:#cdd6dd;
+            overflow-x:auto}
+  .term .k{color:var(--accent)} .term .w{color:var(--warn)} .term .c{color:var(--cap)}
+  .term .g{color:var(--ok)}
+
+  /* sections */
+  section{padding:64px 0;border-bottom:1px solid var(--rule)}
+  .kicker{font:600 12px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+          color:var(--accent);margin:0 0 12px}
+  section h2{font-size:clamp(24px,3.4vw,32px);margin:0 0 16px}
+  section p{color:#c3ccd3;max-width:68ch}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin-top:30px}
+  .card{background:var(--panel);border:1px solid var(--rule);border-radius:9px;padding:20px 20px 22px}
+  .card h3{font-size:17px;margin:0 0 8px;color:var(--text)}
+  .card h3 .num{color:var(--accent-dim);font-family:var(--mono);font-size:13px;margin-right:9px}
+  .card p{font-size:14.5px;color:var(--cap);margin:0}
+  .card .tag{display:inline-block;font:600 11px/1 var(--mono);letter-spacing:.08em;
+             color:var(--accent);border:1px solid var(--accent-dim);border-radius:99px;
+             padding:4px 9px;margin-bottom:12px}
+
+  ul.checks{list-style:none;padding:0;margin:22px 0 0;max-width:70ch}
+  ul.checks li{position:relative;padding:7px 0 7px 30px;color:#c3ccd3;
+               border-bottom:1px solid #10171d}
+  ul.checks li::before{content:"→";position:absolute;left:4px;color:var(--accent);
+                       font-family:var(--mono)}
+  ul.checks li b{color:var(--text)}
+  ul.refuse li::before{content:"✕";color:var(--danger)}
+
+  .steps{counter-reset:s;margin-top:28px}
+  .steps .step{display:flex;gap:18px;padding:16px 0;border-bottom:1px solid #10171d}
+  .steps .step .n{counter-increment:s;flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+    border:1px solid var(--accent-dim);color:var(--accent);display:grid;place-items:center;
+    font:600 14px/1 var(--mono)}
+  .steps .step .n::before{content:counter(s)}
+  .steps .step h3{margin:2px 0 4px;font-size:16px}
+  .steps .step p{margin:0;font-size:14.5px;color:var(--cap)}
+
+  .note{background:#171006;border:1px solid #6b4f1d;border-radius:9px;padding:16px 18px;
+        margin-top:26px;color:#e3d3ab;font-size:14.5px}
+  .note b{color:var(--warn)}
+
+  footer{padding:48px 0 60px}
+  footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;
+               color:var(--cap);font-size:13.5px}
+  footer a{color:var(--cap)} footer a:hover{color:var(--accent)}
+  footer .cols{display:flex;gap:44px;flex-wrap:wrap}
+  footer .cols div{display:flex;flex-direction:column;gap:7px}
+  footer .cols b{color:var(--text);font:600 12px/1 var(--mono);letter-spacing:.1em;
+                 text-transform:uppercase;margin-bottom:3px}
+  .fineprint{margin-top:26px;color:#586570;font-size:12.5px;max-width:70ch;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="exp" role="alert">
+  <div class="wrap">
+    <b>EXPERIMENTAL SECURITY SOFTWARE</b>
+    <span>Alea has not passed its stable-release security gates. Do not use it to protect substantial funds. Practice with small amounts first.</span>
+  </div>
+</div>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">ALEA<span class="dot">·</span></span>
+    <ul>
+      <li><a href="#what">What it is</a></li>
+      <li><a href="#ceremony">The ceremony</a></li>
+      <li><a href="#entropy">Entropy</a></li>
+      <li><a href="#get">Get it</a></li>
+      <li><a href="#security">Security</a></li>
+      <li><a href="https://github.com/Xerhs/Alea">GitHub ↗</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Air-gapped · Pre-OS · Open source</p>
+    <h1>Generate your Bitcoin recovery words before any operating system loads.</h1>
+    <p class="lede">Alea is a small UEFI application that boots from a USB stick and creates a standard BIP39 seed from entropy <em>you</em> chose — physical dice, coin flips, an approved hardware random source, or a mix — with the ordinary desktop OS removed from the process entirely.</p>
+    <p class="sub">It is not "memtest for seeds." Alea is specified to <b style="color:var(--text)">refuse</b> virtualized platforms, remote-console paths, managed endpoints and hardware it cannot reason about — and to tell you why. Refusal is a feature.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Xerhs/Alea/releases">Download a release</a>
+      <a class="btn ghost" href="https://github.com/Xerhs/Alea">Read the source</a>
+      <a class="btn ghost" href="#security">Security &amp; audit</a>
+    </div>
+
+    <div class="term" aria-hidden="true">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <pre><span class="c">ALEA · SEED CEREMONY                        0.10.0-beta</span>
+<span class="k">[1]</span> Generate a recovery phrase
+<span class="k">[2]</span> Verify a seed from another device   <span class="c">(loads the separate verifier)</span>
+<span class="k">[3]</span> Learn  <span class="c">(safety &amp; how the ceremony works)</span>
+<span class="k">[4]</span> Self-check  <span class="c">(this build's cryptographic self-test)</span>
+<span class="k">[5]</span> About / audit status
+<span class="k">[6]</span> Exit  <span class="c">(power off / return to firmware)</span>
+
+<span class="g">›</span> one seed, every wallet type — <span class="c">the wallet picks the type, not you</span></pre>
+    </div>
+  </div>
+</header>
+
+<section id="what">
+  <div class="wrap">
+    <p class="kicker">What Alea is — and is not</p>
+    <h2>A boot tool that completes the seed ceremony on a vetted subset of machines, and loudly refuses the rest.</h2>
+    <p>Alea reduces what you have to trust for seed <em>generation</em> by removing the general-purpose operating system from it. It does <b>not</b> remove the motherboard firmware, the CPU, memory, the display hardware, your physical environment, the compiler, or the release process from what you are trusting — and it says so, plainly, on screen and in every document.</p>
+    <ul class="checks">
+      <li><b>Standard BIP39.</b> 12 or 24 words that restore into Trezor, Ledger, Coldcard, Sparrow, Electrum, BlueWallet — any BIP39 wallet. There is no "Alea seed"; you generated a seed.</li>
+      <li><b>Your entropy, your choice.</b> Dice, coins, an approved machine source, or a combination — with the physical transcript recorded so you can independently reproduce the result.</li>
+      <li><b>Confirm before you fund.</b> After full re-entry it shows the master fingerprint and first receive addresses so you can check your signing device restored the exact same wallet before depositing.</li>
+      <li><b>Reproducible &amp; verifiable.</b> An independently-written Python reference implementation and a frozen test-vector corpus let anyone check the math bit-for-bit.</li>
+    </ul>
+    <ul class="checks refuse">
+      <li>Not a hardware wallet, not a secure element, and not proof your computer is trustworthy.</li>
+      <li>Not universal — it refuses hypervisors, remote consoles and hardware it cannot classify, on purpose.</li>
+      <li>Never shows or exports a private key, <code>xprv</code>, or the raw seed.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ceremony">
+  <div class="wrap">
+    <p class="kicker">The ceremony</p>
+    <h2>Deliberate, slow, and reboot-based — because that is the cost of the trust reduction.</h2>
+    <div class="steps">
+      <div class="step"><span class="n"></span><div><h3>Prepare &amp; check the machine</h3><p>Acknowledge what you are and aren't trusting, confirm this is the machine's own physical display, and pass the device self-tests.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Choose your entropy</h3><p>12 or 24 words; dice-only, machine-only, or combined. Mandated warnings for each mode are shown inline before you commit.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Collect &amp; generate</h3><p>Roll/flip or draw machine randomness; a single arm key generates — <code>Enter</code> is deliberately ignored so it cannot be triggered by reflex.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Write down &amp; re-enter</h3><p>The words are shown once; you type every one back with no echo. Only a full match continues — this catches copy errors before any funds exist.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Optional passphrase, then verify</h3><p>Add an optional BIP39 passphrase, then confirm the fingerprint and addresses against your own wallet — and, if you want, open the optional watch-only / multisig export.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Scrub &amp; power off</h3><p>Secret material is overwritten and the machine powers down — no files, no logs, no network, nothing persisted by the application.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="entropy">
+  <div class="wrap">
+    <p class="kicker">Entropy you can reason about</p>
+    <h2>The seed provably follows only the entropy you saw or created.</h2>
+    <p>An internal source audit traced the whole path — collection → conditioning → BIP39 → seed. The seed is a deterministic function of only your collected entropy plus fixed, declared constants: no hidden RNG, no timestamps, no environment values, and an empty transcript is refused at the cryptographic boundary. Machine randomness is <b>fail-closed</b>: RDSEED's success flag is honored on every draw and never substituted with zero, and the code refuses rather than proceed on an absent, timed-out, or stuck source — there is no weak software-RNG fallback anywhere.</p>
+    <div class="grid">
+      <div class="card"><span class="tag">Dice &amp; coins</span><h3>Entropy you can witness</h3><p>Fair dice and coin flips, budgeted to a target strength, with an order-preserving transcript you can replay against the reference implementation.</p></div>
+      <div class="card"><span class="tag">Machine</span><h3>Approved sources only</h3><p>A compiled-in, versioned policy governs which hardware sources are allowed. True-random RDSEED is preferred; RDRAND can never stand alone.</p></div>
+      <div class="card"><span class="tag">Combined</span><h3>Don't trust the silicon</h3><p>Mix machine randomness with your own dice/coins. Your physical entropy is the backstop that does not depend on trusting the CPU's RNG.</p></div>
+    </div>
+    <div class="note"><b>The one thing it can't check:</b> a CPU RNG that is subtly biased yet still passes the catastrophic checks. No software on that same CPU can detect it — which is exactly what Alea warns you before generation, and why dice/coin entropy exists. Read the <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">entropy audit</a>.</div>
+  </div>
+</section>
+
+<section id="get">
+  <div class="wrap">
+    <p class="kicker">Getting it onto hardware</p>
+    <h2>Download, verify, flash, boot — verify before you trust.</h2>
+    <div class="steps">
+      <div class="step"><span class="n"></span><div><h3>Download a release</h3><p>Grab <code>alea-x86_64-usb.img</code> and <code>SHA256SUMS</code> from the <a href="https://github.com/Xerhs/Alea/releases">releases page</a>. Builds are reproducible from source.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Verify the checksum</h3><p>Confirm the image matches <code>SHA256SUMS</code> before writing it. The release is unsigned by design at this stage — the checksum is how you verify it.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Flash the whole USB</h3><p>Write the raw image to a USB device with Rufus (DD mode), balenaEtcher, or <code>dd</code>. It is a full GPT disk image.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3>Boot on real hardware</h3><p>Disable Secure Boot (the payload is unsigned), boot the USB in UEFI mode. Alea refuses virtualization, so the full ceremony only runs on a real machine.</p></div></div>
+    </div>
+    <div class="note"><b>Rehearse first.</b> A desktop rehearsal edition (public test vectors only, permanently watermarked, <em>never</em> a real generator) lets you practice every screen and mechanically cross-check the implementation against its reference before you ever use real entropy.</div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <p class="kicker">Security posture</p>
+    <h2>Honest about the ceiling, not a marketing floor.</h2>
+    <p>Alea's own stated limit is that it provides a small, auditable, pre-operating-system workflow that removes the desktop OS from seed generation and documents the firmware, hardware, release and physical trust assumptions that remain. It makes no claim to be unbreakable, trustless, or equivalent to a hardware wallet — those framings are permanently prohibited in this project, gates met or not.</p>
+    <ul class="checks">
+      <li><b>Threat model &amp; trade-offs</b> — what "trusted" and "reduced" mean, concretely: <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">SECURITY.md</a></li>
+      <li><b>Entropy integrity audit</b> — the full derivation + RNG-robustness trace: <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">docs/ENTROPY-AUDIT.md</a></li>
+      <li><b>Reproduce it yourself</b> — rebuild the payload and compare hashes; run the independent Python reference against the frozen vectors.</li>
+      <li><b>Report a vulnerability</b> — see the reporting section of SECURITY.md.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <span class="brand">ALEA<span class="dot">·</span></span>
+      <p style="color:var(--cap);font-size:13.5px;margin:12px 0 0;max-width:34ch">Air-gapped, open-source BIP39 recovery-phrase generation, before the OS.</p>
+    </div>
+    <div class="cols">
+      <div><b>Project</b>
+        <a href="https://github.com/Xerhs/Alea">Source · GitHub</a>
+        <a href="https://github.com/Xerhs/Alea/releases">Releases</a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/README.md">README</a>
+      </div>
+      <div><b>Docs</b>
+        <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">Security</a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">Entropy audit</a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/QUICKSTART.md">Quickstart</a>
+      </div>
+      <div><b>License</b>
+        <a href="https://github.com/Xerhs/Alea/blob/master/LICENSE-MIT">MIT</a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/LICENSE-APACHE">Apache-2.0</a>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="fineprint">Experimental security software. Alea has not completed the stable-release security gates defined in its specification; every production-capable build displays this warning before generation. Nothing on this page is investment advice or a security guarantee. Dual-licensed MIT OR Apache-2.0.</p>
+  </div>
+</footer>
+
+</body>
+</html>

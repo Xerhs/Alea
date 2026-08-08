@@ -1,0 +1,61 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "machine_rdrand_supplementary_with_dice_12w",
+      "sources": [
+        {
+          "tag": "0x03",
+          "algo": "RDRAND",
+          "bytes_hex": "15222f3c49566370"
+        },
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f763100000100800001000c020306524452414e44000815222f3c49566370100000320102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102",
+      "final_entropy_hex": "e09e95e1df0b36ca407e73550cae4a3b",
+      "mnemonic_indexes": [
+        1796,
+        1957,
+        963,
+        1520,
+        1435,
+        809,
+        15,
+        1651,
+        680,
+        811,
+        1172,
+        945
+      ],
+      "mnemonic_words": [
+        "they",
+        "visa",
+        "journey",
+        "safe",
+        "recall",
+        "gown",
+        "acid",
+        "solar",
+        "fence",
+        "grace",
+        "myth",
+        "involve"
+      ],
+      "bip39_seed_hex": "84f16e6254a7970b6987ccbda2323ab3469a2a6f37997451b5e8cc26b7fbe67f69d103f7f1707fe159f34f6d0f52005b9b0d1ae5f818d3ef4f70870509379b25",
+      "master_fingerprint_hex": "133110ff",
+      "addresses": {
+        "bip44": "15nLpk7mKMXR9ppJbTjQ1KBiVmZdPKjWiF",
+        "bip49": "35EFWACLkAMYpbzVG8kxMLh9s9QMno3hqK",
+        "bip84": "bc1quwrml76eqypvnvwl0qvj4ev4ufd53a5jn0437q",
+        "bip86": "bc1puk6a33fur3lgtxr7rx7l7zpj34tg0zmm4wyzpjy7w7qa662kswlsuv95kt"
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "seedsigner_dice_99rolls_asked_12w_refusal",
+      "profile": "seedsigner-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "655152231316521321611331544441236164664431121534415633526456254462245546236542364246312613322234612",
+      "event_count": 99,
+      "expected": "refusal",
+      "error_kind": "Refused",
+      "reason": "99 rolls cannot produce 12 words on SeedSigner \u2014 dice. SeedSigner \u2014 dice sets word count from the roll count: 50 rolls -> 12 words, 99 rolls -> 24 words, and it refuses any other pairing. This tool refuses the same inputs the device refuses, on purpose.",
+      "oracle_kind": "vendor_tool_refusal",
+      "ground_truth": [
+        "vendor_tool_refusal:seedsigner_tools_mnemonic_py@dev"
+      ],
+      "requested_word_count": 12
+    }
+  ]
+}

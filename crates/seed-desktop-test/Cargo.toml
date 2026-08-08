@@ -1,0 +1,65 @@
+[package]
+name = "seed-desktop-test"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Desktop test edition (SPEC §4.3, WP-28): `std`, distributed separately
+# from the production image and NEVER a dependency of
+# `seed-uefi-production` (verify with `cargo tree -p seed-uefi-production`,
+# ci.sh — this crate does not even appear in that graph).
+#
+# Depends on `seed-gop-ui` with default (non-UEFI) features only — never
+# enables `uefi-backend` (that feature's `gop::backend` submodule calls
+# real UEFI protocols and is irrelevant here; `gop::{device_path, mode,
+# framebuffer, pixel, scrub}` and the whole `font` module are always
+# compiled regardless of that feature, which is all this crate needs).
+#
+# `seed-flow` (`crates/seed-flow`, top-level and edition-neutral) is
+# reused verbatim as an ordinary path dependency (WP-28 brief): this
+# crate implements its provider traits (`TextOutput`, `MenuKeySource`,
+# `seed_core::contracts::Framebuffer`, the SPEC §11 gate traits,
+# `MachineSourceGate`, `ShutdownProvider`, `FaultHook`) against a real
+# desktop window instead of UEFI firmware, and calls
+# `seed_flow::run_pre_secret_flow` unmodified for the entire
+# (secret-free) pre-secret ceremony. `winit`+`softbuffer` are added here
+# only (never to `seed-flow`/`seed-gop-ui`/any shared crate), per the
+# WP-28 instruction.
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-protocol = { path = "../seed-protocol" }
+seed-derive = { path = "../seed-derive" }
+seed-platform-x86 = { path = "../seed-platform-x86" }
+seed-gop-ui = { path = "../seed-gop-ui" }
+seed-flow = { path = "../seed-flow" }
+seed-test-vectors = { path = "../seed-test-vectors" }
+# GAP 3 (desktop rehearsal feature parity): surface the SPEC §11.6
+# aggregate known-answer crypto self-test in the GUI `[4] Self-check /
+# verify build` screen, alongside the frozen-vector reproduction. Reused
+# verbatim (`run_aggregate_self_test`), exactly as the production
+# `CryptographicSelfTest` state runs it. Desktop-edition-only dependency
+# edge — never added to `seed-uefi-production` (verify via
+# `cargo tree -p seed-uefi-production`).
+seed-selftest = { path = "../seed-selftest" }
+# `crate::launcher::compat` only (SPEC_MAIN_MENU.md §6.4, §15 OQ1 resolved
+# ENABLED; SPEC_COMPAT.md v0.6.3 amendment §9): this is the desktop-GUI
+# analogue of `tools/compat-verify`. Adds the `seed-compat` dependency edge
+# to `seed-desktop-test` ONLY, never to `seed-uefi-production` (verified by
+# `cargo tree -p seed-uefi-production`; the SPEC §28/WP-30 binary-policy
+# scanner's production denylist for `seed-compat` symbols is unaffected).
+seed-compat = { path = "../seed-compat" }
+# Reused only to scrub the compat screen's own local key/chain-code/seed
+# buffers after computing the SPEC §24 verification values (SPEC §13,
+# §20.3 hygiene) -- same reviewed workspace-pinned dependency
+# `tools/compat-verify` already uses for exactly this purpose.
+zeroize = { workspace = true }
+
+# Windowing + pixel presentation (SPEC §4.3, §12.2 rendering path reused
+# via `seed_gop_ui::font` over a `winit`+`softbuffer`-backed `Framebuffer`
+# impl). Pinned versions, reviewed for this crate only (SPEC §31 applies
+# workspace-wide, but these two are intentionally *not* hoisted into
+# `[workspace.dependencies]`: no other crate in this workspace — least of
+# all `seed-uefi-production` — may ever need a windowing toolkit).
+winit = "=0.29.15"
+softbuffer = "=0.4.8"

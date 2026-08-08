@@ -1,0 +1,19 @@
+{
+  "schema": "alea-compat-vectors-v1",
+  "cases": [
+    {
+      "name": "coldcard_dice_empty_string_no_oracle",
+      "profile": "coldcard-dice",
+      "method": "Sha256AsciiDigest",
+      "events": "",
+      "event_count": 0,
+      "expected": "refusal",
+      "error_kind": "Empty",
+      "reason": "event string is empty",
+      "oracle_kind": "math_boundary_no_oracle",
+      "ground_truth": [],
+      "requested_word_count": 12,
+      "requires_hw_confirmation": true
+    }
+  ]
+}

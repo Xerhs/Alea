@@ -1,0 +1,19 @@
+# Local agent state (Claude Code worktrees, plans, session/local settings) — never publish
+/.claude/
+
+/target
+**/target/
+__pycache__/
+*.pyc
+
+# stray package downloads
+*.deb
+/qemu-prefix/
+
+# release build output (regenerable via scripts/build-release.sh; publish via GitHub Releases, not git)
+/dist/
+
+# web offline edition: intermediate optimized wasm (regenerable via web/build.sh;
+# it is base64-inlined into the committed web/alea-web-offline.html, which IS the
+# tracked deliverable).
+/web/seed_web.opt.wasm

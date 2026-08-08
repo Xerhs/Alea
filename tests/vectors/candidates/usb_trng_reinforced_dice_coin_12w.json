@@ -1,0 +1,66 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_reinforced_dice_coin_12w",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "0102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010080000100380310000032010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010211000050000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000112145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "5e71b4256755994232163e1416843a29",
+      "mnemonic_indexes": [
+        755,
+        1133,
+        74,
+        1653,
+        716,
+        1288,
+        1602,
+        1598,
+        160,
+        1441,
+        116,
+        662
+      ],
+      "mnemonic_words": [
+        "fury",
+        "misery",
+        "announce",
+        "solid",
+        "flower",
+        "patient",
+        "sign",
+        "sick",
+        "beef",
+        "reflect",
+        "attend",
+        "fan"
+      ],
+      "bip39_seed_hex": "837bb7231ed62ed3d7aefd53b594fc66ecad185e7f12a07d722641cf50aec5cf5d8a6cb63acd2546ab1e26ceb89946585e9f43a375b4abf564e1cc36a92d2360",
+      "master_fingerprint_hex": "204fa7b3",
+      "addresses": {
+        "bip44": "1AnqEfFesrkX2hNdoHNEHHv6uX4mBY6HGW",
+        "bip49": "3K5Dmu9pEMK88zYrR3zwW2t1sKJKDFJLu6",
+        "bip84": "bc1qdrqhwdpc5jnqe4d4ja7t8n73tcflpf5vapg9r9",
+        "bip86": "bc1pem5n7nje6vu65zeq9cmwqdg5xf539tzh3286fawsylcshasd5yqs2k6lwm"
+      }
+    }
+  ]
+}

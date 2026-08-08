@@ -1,0 +1,35 @@
+# No committed `target-dir`: a machine-specific absolute path breaks CI
+# (release.yml expects the default `target/`) and every other machine. Point
+# the cache at a native fs locally via the CARGO_TARGET_DIR env var instead
+# (e.g. CARGO_TARGET_DIR=~/.cache/seedmaker-target), per the working rules.
+
+# `sha2` 0.11.0's auto-selected x86 SIMD backend (SHA-NI/AVX2 intrinsics)
+# triggers an LLVM backend crash ("Do not know how to split the result of
+# this operator!") specifically when codegen-ing for the
+# `x86_64-unknown-uefi` target spec with this toolchain (rustc 1.97.1,
+# LLVM 22.1.6) — reproduced in isolation with a minimal `sha2`-only crate;
+# it is not caused by anything in this workspace's own code. Forcing the
+# portable backend for that one target only (not the default host/musl
+# target, which is unaffected) avoids it. This is target-specific
+# codegen configuration, not the linker configuration AGENTS.md says is
+# global/do-not-duplicate.
+#
+# Reproducibility link flags (SPEC §32) live here too, so the normal
+# `--release` build and the reproduce-unsigned.sh harness share ONE
+# identical flag source. rust-lld's PE/COFF backend (used for `*-uefi`)
+# otherwise embeds two non-deterministic values: the COFF header
+# `TimeDateStamp` (wall-clock build time) and a PE debug directory whose
+# PDB signature/age is not content-derived. `/Brepro` replaces the
+# timestamp with a hash of the link inputs; `/DEBUG:NONE` drops the debug
+# directory entirely (a `#![no_std] #![no_main]` firmware binary has no
+# debugger-attach consumer). Both are required — either alone still leaves
+# bytes differing build-to-build. Keeping them here (not in a RUSTFLAGS
+# env override) is deliberate: a RUSTFLAGS env var REPLACES these target
+# rustflags wholesale and would silently drop the sha2_backend cfg above,
+# so the shipped binary and the "reproduced" binary could diverge.
+[target.x86_64-unknown-uefi]
+rustflags = [
+    "--cfg", 'sha2_backend="soft"',
+    "-C", "link-arg=/Brepro",
+    "-C", "link-arg=/DEBUG:NONE",
+]

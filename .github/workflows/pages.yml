@@ -1,0 +1,52 @@
+# Publish the project website (site/) to GitHub Pages.
+#
+# The site is a single self-contained static page — no build step, no external
+# CDNs, no trackers (appropriate for a privacy/security tool). This workflow
+# uploads the `site/` directory as-is and deploys it with the first-party
+# GitHub Pages actions.
+#
+# To go live, the repository owner must enable Pages with "GitHub Actions" as the
+# source (Settings → Pages). Until then this workflow is inert. It only ever
+# publishes the committed `site/` directory; it takes no untrusted input.
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# Least privilege: only what the Pages deploy needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One live deployment at a time; don't cancel an in-flight publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

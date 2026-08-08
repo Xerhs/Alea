@@ -1,0 +1,61 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "usb_trng_with_coin_only_12w",
+      "sources": [
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "0001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        },
+        {
+          "tag": "0x12",
+          "algo": "USB-TRNG/OneRNG/cmd1",
+          "bytes_hex": "7e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010080000100300211000080000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000112145553422d54524e472f4f6e65524e472f636d643100207e8b98a5b2bfccd9e6f3000d1a2734414e5b6875828f9ca9b6c3d0ddeaf70411",
+      "final_entropy_hex": "b5e00d11decbd3d792d7fce1fab548c7",
+      "mnemonic_indexes": [
+        1455,
+        3,
+        547,
+        1516,
+        1513,
+        1886,
+        602,
+        2044,
+        1807,
+        1709,
+        657,
+        1144
+      ],
+      "mnemonic_words": [
+        "remove",
+        "about",
+        "dutch",
+        "rural",
+        "rule",
+        "type",
+        "ensure",
+        "zebra",
+        "tiger",
+        "stick",
+        "fall",
+        "monitor"
+      ],
+      "bip39_seed_hex": "2b827bda09d9c3e9fa7f7fa1c0964e23fccbf37da875daa3939fec3a75d2e6015c11b8884c58d7313a23e2ef80b30c7c5772af30290e71ca108dca6a041d21bd",
+      "master_fingerprint_hex": "ae0e7e9c",
+      "addresses": {
+        "bip44": "1LnSQoAYZZpGDkAzXnyeodhMC3cTwp5YZc",
+        "bip49": "3JY4PN9cVyAkCLsGk3trnavWL8zudavnDB",
+        "bip84": "bc1q4wfcgvyxlstrwkzea22nu2l6gmrv8gjrkc5kk3",
+        "bip86": "bc1pmlvlc6x9rtls23xumm5mlwhvyy34rvs9umyhh3y6d909hx9jjups3rvyl2"
+      }
+    }
+  ]
+}

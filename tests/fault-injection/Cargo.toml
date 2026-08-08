@@ -1,0 +1,40 @@
+[workspace]
+# WP-33 (SPEC §29.5, IMPLEMENTATION_MAP.md §5/§6): `tests/fault-injection/`
+# is this WP's own owned path. The *root* `Cargo.toml` workspace-members
+# list (and every other WP's own `Cargo.toml`) is owned by WP-00 /
+# whichever WP owns that path (§6), so this crate is deliberately its own
+# standalone Cargo workspace root (this empty `[workspace]` table stops
+# Cargo's upward workspace search at this manifest) rather than a new
+# entry in the root `members = [...]` list. It still depends on the real
+# sibling crates it drives via ordinary path dependencies below — Cargo
+# path resolution does not require the dependent to be a member of the
+# same workspace as the dependency, only that the dependency's own
+# manifest resolves (each depended-on crate finds the *root* workspace by
+# walking up from its own directory, exactly as it does when built via
+# `cargo test --workspace` from the repo root). This crate gets its own
+# `Cargo.lock` and (per the environment notes) is built under
+# `$CARGO_TARGET_DIR` like everything else, so it never collides with the
+# root workspace's own lockfile/target directory.
+#
+# If a later WP wants this crate folded into `cargo test --workspace`
+# directly, that requires editing the root `Cargo.toml` `members` list —
+# out of this WP's ownership, recorded as a `shared_file_needs` item
+# instead of done here. (`ci.sh` now runs this suite explicitly via
+# `cargo test --manifest-path tests/fault-injection/Cargo.toml`, so
+# standalone-workspace status no longer means unexecuted.)
+
+[package]
+name = "seed-fault-injection"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# SPEC §29.5: this suite drives the real WP-23 state machine and the real
+# WP-15/WP-26 pipeline/ceremony code with injected errors — it depends on
+# the genuine production/host-testable logic crates, never a
+# reimplementation of them.
+[dependencies]
+seed-core = { path = "../../crates/seed-core" }
+seed-protocol = { path = "../../crates/seed-protocol" }
+seed-platform-x86 = { path = "../../crates/seed-platform-x86" }
+seed-flow = { path = "../../crates/seed-flow" }

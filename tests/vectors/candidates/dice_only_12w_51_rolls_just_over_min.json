@@ -1,0 +1,56 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "dice_only_12w_51_rolls_just_over_min",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 128,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f76310000010080000100080110000033010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203",
+      "final_entropy_hex": "dbf6256ffba95691f6ee7210250b5a20",
+      "mnemonic_indexes": [
+        1759,
+        1417,
+        735,
+        1978,
+        1195,
+        583,
+        1757,
+        1650,
+        129,
+        322,
+        1716,
+        524
+      ],
+      "mnemonic_words": [
+        "swim",
+        "raise",
+        "fossil",
+        "warrior",
+        "nice",
+        "employ",
+        "sweet",
+        "soft",
+        "awake",
+        "choose",
+        "story",
+        "dose"
+      ],
+      "bip39_seed_hex": "d6289dae6c4ac3ac32676781443f5f14ab1c3a8948e87d6a4f362e1120189e90bd61d79219d418346c5ab83eb2ccd877a041e4d852223097b5279305d8dc8d4b",
+      "master_fingerprint_hex": "496b020a",
+      "addresses": {
+        "bip44": "15Snxf73qHt3Y8nfcrvmUwzQa4G9EvEgLP",
+        "bip49": "35StpEUxwEhAYSwwwndz2sN3Bcu5wv5QSp",
+        "bip84": "bc1qmm7nsmecxngf8z9a3q8zrwyj6wlu2g3f5yvsyy",
+        "bip86": "bc1pn953vvddp7tcngumq9ep352cx5x3k23hp8k4snz97d8c499maqjqpw335c"
+      }
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+/* Alea Offline Web Edition — Phase 1 (verification-only). System font stack
+   only (no web fonts — SPEC_WEB_OFFLINE §5.1). Theme-aware via
+   prefers-color-scheme, dependency-free. */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #14181f;
+  --muted: #5b6572;
+  --line: #d7dce3;
+  --accent: #1f6feb;
+  --warn-bg: #7a1220;
+  --warn-ink: #fff2f2;
+  --danger-bg: #b71c1c;
+  --ok: #1a7f37;
+  --code-bg: #eef1f5;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --ink: #e6edf3;
+    --muted: #9aa4b2;
+    --line: #2a313c;
+    --accent: #58a6ff;
+    --warn-bg: #86141f;
+    --warn-ink: #fff2f2;
+    --danger-bg: #da3633;
+    --ok: #3fb950;
+    --code-bg: #1b2029;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.band {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  position: sticky;
+  z-index: 50;
+}
+.band.top { top: 0; }
+.band.bottom { bottom: 0; position: static; margin-top: 32px; font-weight: 500; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 20px 16px 0; }
+h1 { font-size: 22px; margin: 18px 0 4px; }
+.sub { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+.hierarchy {
+  font-size: 12.5px; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; background: var(--panel); margin: 10px 0;
+}
+.hierarchy b { color: var(--ink); }
+.origin {
+  display: none; background: var(--danger-bg); color: #fff; border-radius: 8px;
+  padding: 12px 14px; margin: 12px 0; font-weight: 600; font-size: 14px;
+}
+.origin.show { display: block; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 0; }
+.tab {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  padding: 9px 14px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px;
+  font-family: var(--sans);
+}
+.tab[aria-selected="true"] { border-bottom-color: var(--panel); background: var(--panel); font-weight: 700; color: var(--accent); }
+.panel {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 0 8px 8px 8px;
+  padding: 18px; display: none;
+}
+.panel.active { display: block; }
+.panel h2 { font-size: 17px; margin: 0 0 6px; }
+.panel p { font-size: 14px; color: var(--muted); margin: 6px 0; }
+label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+textarea, input[type="text"], select {
+  width: 100%; font-family: var(--mono); font-size: 14px; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink);
+}
+textarea { min-height: 76px; resize: vertical; }
+.caption { font-size: 12px; color: var(--danger-bg); margin: 4px 0 0; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .caption { color: #ff7b72; } }
+button.go {
+  margin-top: 14px; background: var(--accent); color: #fff; border: none;
+  padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  font-family: var(--sans);
+}
+button.go:disabled { opacity: .5; cursor: not-allowed; }
+.watermark {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 5px; margin: 12px 0 6px;
+  background: #fde68a; color: #713f12; border: 1px solid #f59e0b;
+}
+.watermark.foreign { background: #fecaca; color: #7f1d1d; border-color: #ef4444; }
+.results { margin-top: 12px; display: none; }
+.results.show { display: block; }
+.row {
+  display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 7px 0;
+  border-top: 1px solid var(--line); align-items: baseline;
+}
+.row .k { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.row .v { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+.err { color: var(--danger-bg); font-weight: 600; font-size: 14px; }
+@media (prefers-color-scheme: dark) { .err { color: #ff7b72; } }
+code, .mono { font-family: var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.hash { font-family: var(--mono); font-size: 12.5px; word-break: break-all; background: var(--code-bg); padding: 8px 10px; border-radius: 6px; }
+details { margin: 10px 0; }
+summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+ul { font-size: 13.5px; color: var(--muted); }
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.62); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.overlay[hidden] { display: none; }
+.modal {
+  background: var(--panel); color: var(--ink); border-radius: 12px; max-width: 620px;
+  max-height: 88vh; overflow-y: auto; padding: 22px; border: 1px solid var(--line);
+}
+.modal h2 { margin-top: 0; }
+.modal .go { width: 100%; }
+.footnote { color: var(--muted); font-size: 12px; margin: 24px 0 12px; }
+/* Utility classes replacing inline style attributes (blocked by hashed
+   style-src — SPEC_WEB_OFFLINE §3.3 M1: no 'unsafe-inline'). */
+#boot-error { display: none; }
+#boot-error.show { display: block; }
+.masked { -webkit-text-security: disc; }
+.minibtn { margin-top: 6px; padding: 5px 10px; }
+.intmargin { margin-top: 14px; }
+/* Feature 2b — "More derivation options" grid params + first-N table. */
+.more { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 8px; }
+.more > summary { color: var(--accent); }
+.grid-params {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 14px; margin: 10px 0 2px;
+}
+.field label { margin: 0 0 4px; }
+.gridtbl { width: 100%; border-collapse: collapse; margin: 12px 0 6px; font-family: var(--mono); }
+.gridtbl th, .gridtbl td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); font-size: 13px; }
+.gridtbl th { color: var(--muted); font-size: 12px; font-weight: 600; font-family: var(--sans); }
+.gridtbl td.gi { color: var(--muted); width: 64px; }
+.gridtbl td.ga { word-break: break-all; }

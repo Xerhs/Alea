@@ -1,0 +1,29 @@
+[workspace]
+# Standalone Cargo workspace, same pattern (and same reason) as
+# `tests/fault-injection/` and `tests/leakage/`: the root `Cargo.toml`
+# members list is owned by WP-00, and this is test tooling. The empty
+# `[workspace]` table stops Cargo's upward workspace search here, so this
+# crate gets its own `Cargo.lock` and never joins `cargo build --workspace`
+# or any release build.
+#
+# This is a HOST binary (`x86_64-unknown-linux-*`). It produces no bootable
+# artifact and cannot run on firmware: it calls the shipped `seed-flow`
+# screen renderers against an in-memory framebuffer so their real pixels —
+# in particular the Stage 7 export screen's QR symbol at its true on-screen
+# module geometry — can be dumped to PPM and fed to an image decoder. It
+# derives from a PUBLIC frozen test vector only.
+
+[package]
+name = "alea-render-screens"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "alea-render-screens"
+path = "src/main.rs"
+
+[dependencies]
+seed-core = { path = "../../../crates/seed-core" }
+seed-protocol = { path = "../../../crates/seed-protocol" }
+seed-flow = { path = "../../../crates/seed-flow" }

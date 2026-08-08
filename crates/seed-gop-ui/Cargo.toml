@@ -1,0 +1,23 @@
+[package]
+name = "seed-gop-ui"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# `#![no_std]` always (see lib.rs doc). `uefi` is optional so the `std`
+# desktop test edition can depend on this crate (for `font` only) without
+# pulling UEFI protocol code in.
+#
+# `seed-qr` is unconditional (not feature-gated): `qr::draw_qr` names
+# `&seed_qr::Matrix` in its public signature, and that crate is itself
+# `no_std`, `alloc`-free and dependency-free, so it adds nothing to any
+# consumer's graph beyond its own encoder.
+[dependencies]
+seed-core = { path = "../seed-core" }
+seed-qr = { path = "../seed-qr" }
+uefi = { workspace = true, optional = true }
+
+[features]
+default = []
+uefi-backend = ["dep:uefi"]

@@ -1,0 +1,119 @@
+# Alea push/PR CI (publish-readiness remediation, 2026-08-06).
+#
+# Before this workflow existed the only CI was release.yml (tag-triggered):
+# nothing ran ci.sh — or the two standalone security suites it now contains
+# (tests/fault-injection, SPEC §29.5/WP-33; tests/leakage, SPEC §29.6/WP-34)
+# — on push or pull_request. This workflow runs the SAME `bash ci.sh` a
+# developer runs locally; the steps below only provision the environment
+# (pinned rust toolchain, musl C toolchain, binaryen version_119, node LTS,
+# cargo-vet 0.10.2) so a local run and a CI run check exactly the same
+# things. The standalone suites are invoked from INSIDE ci.sh, not from
+# extra steps here, for that same local/CI-parity reason.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ci.sh pins CARGO_BUILD_TARGET=x86_64-unknown-linux-musl itself (the
+  # repo's host-build convention); nothing to replicate here. This is the
+  # same target-dir default ci.sh itself applies (ci.sh line 9) — spelled
+  # out so the actions/cache path below and ci.sh provably agree.
+  CARGO_TARGET_DIR: /home/runner/.cache/sf-target/ci
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain (rust-toolchain.toml) + wasm32 target
+        run: |
+          set -euo pipefail
+          # rustup auto-installs the channel + targets pinned in
+          # rust-toolchain.toml (1.97.1, x86_64-unknown-uefi,
+          # x86_64-unknown-linux-musl) on first use in this directory.
+          rustup show
+          # wasm32 is required by ci.sh's web-offline gate but is not in
+          # rust-toolchain.toml's target list; add it explicitly.
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install musl C toolchain (repo host-build convention is musl)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Cache cargo registry + git deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git
+          key: cargo-registry-${{ hashFiles('Cargo.lock', 'tests/fault-injection/Cargo.lock', 'tests/leakage/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-
+
+      - name: Cache build target dir (includes the standalone-suite subdirs)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sf-target/ci
+          key: sf-target-ci-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/fault-injection/Cargo.lock', 'tests/leakage/Cargo.lock') }}
+          restore-keys: |
+            sf-target-ci-
+
+      - name: Cache cargo-vet 0.10.2
+        id: cache-cargo-vet
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-vet
+          key: cargo-vet-0.10.2-x86_64-unknown-linux-gnu
+
+      - name: Install cargo-vet 0.10.2 (supply-chain gate)
+        if: steps.cache-cargo-vet.outputs.cache-hit != 'true'
+        env:
+          # cargo-vet is pinned to 0.10.2 and installed for the gnu target
+          # (never build the tool itself for musl).
+          CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+        run: cargo install cargo-vet --version 0.10.2 --locked
+
+      - name: Cache binaryen version_119
+        id: cache-binaryen
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/binaryen-version_119
+          key: binaryen-version_119-x86_64-linux
+
+      - name: Install binaryen version_119 (SPEC_WEB_OFFLINE §5.2 normative pin)
+        if: steps.cache-binaryen.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          url="https://github.com/WebAssembly/binaryen/releases/download/version_119/binaryen-version_119-x86_64-linux.tar.gz"
+          curl -fsSL --retry 5 --retry-delay 10 -o /tmp/binaryen.tar.gz "$url"
+          # Verify against the checksum recorded in-repo
+          # (web/binaryen-version_119-x86_64-linux.tar.gz.sha256). Fail
+          # closed if the record is missing — never trust an unverified
+          # download.
+          expected="$(cut -d' ' -f1 web/binaryen-version_119-x86_64-linux.tar.gz.sha256)"
+          echo "$expected  /tmp/binaryen.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/.local"
+          tar -C "$HOME/.local" -xzf /tmp/binaryen.tar.gz
+          "$HOME/.local/binaryen-version_119/bin/wasm-opt" --version
+          # ci.sh adds $HOME/.local/binaryen-version_119/bin to PATH itself
+          # when wasm-opt is absent (ci.sh web-gate toolchain check).
+
+      - name: Setup Node LTS (runs web/test-wasm.mjs vector harness)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Run ci.sh (workspace build+tests, SPEC §28 gates, §29.5/§29.6 standalone suites, §31 supply-chain, SPEC_WEB_OFFLINE §10 reproducibility)
+        run: bash ci.sh

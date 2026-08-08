@@ -1,0 +1,42 @@
+[package]
+name = "seed-leakage-tests"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# WP-34 (SPEC §29.6) — leakage test suite. This is an OWN, standalone crate
+# (`IMPLEMENTATION_MAP.md` §5 WP-34, §6 ownership table: `tests/leakage/` is
+# WP-34's), never part of the production dependency graph.
+#
+# The bare `[workspace]` table below is deliberate, not an oversight: the
+# root `Cargo.toml` and its `[workspace] members` list are owned by WP-00
+# (`IMPLEMENTATION_MAP.md` §6 — "repo root files, all `Cargo.toml`
+# manifests ... | WP-00"), so this crate must not add itself there. Adding
+# an explicit (even empty) `[workspace]` table here makes Cargo treat this
+# directory as the root of its *own* single-crate workspace instead of
+# silently attaching to (or erroring against) the parent workspace it
+# happens to sit inside — this is the documented, standard Cargo idiom for
+# "a nested crate that is not, and must not become, a member of its
+# ancestor's workspace". `ci.sh` runs this suite directly against this
+# manifest (`cargo test --manifest-path tests/leakage/Cargo.toml`) as a
+# hard gate, fully independent of the root workspace's own
+# `cargo test --workspace`.
+[workspace]
+
+# Path dependencies only, on sibling crates this suite inspects/drives —
+# no third-party additions (`AGENTS.md` §1 rule 5, §8). Versions/dep pins
+# themselves are WP-00's (read-only to this WP); only the path wiring
+# below is this crate's own.
+[dependencies]
+seed-core = { path = "../../crates/seed-core" }
+seed-protocol = { path = "../../crates/seed-protocol" }
+seed-derive = { path = "../../crates/seed-derive" }
+# `uefi-backend` is enabled only so `error_no_secrets.rs` can name
+# `seed_gop_ui::gop::backend::GopOpenError` for its structural shape
+# check (compiling that type does not require real UEFI firmware — it is
+# still exercised only via host `cargo test`, never executed against real
+# hardware/QEMU from this suite).
+seed-gop-ui = { path = "../../crates/seed-gop-ui", features = ["uefi-backend"] }
+seed-platform-x86 = { path = "../../crates/seed-platform-x86" }
+seed-flow = { path = "../../crates/seed-flow" }

@@ -1,0 +1,85 @@
+{
+  "schema": "alea-vectors-v1",
+  "cases": [
+    {
+      "name": "mixed_dice_coins_24w_case1",
+      "sources": [
+        {
+          "tag": "0x10",
+          "algo": "",
+          "bytes_hex": "010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506010203040506"
+        },
+        {
+          "tag": "0x11",
+          "algo": "",
+          "bytes_hex": "00010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001"
+        }
+      ],
+      "arch": "x86_64",
+      "bits": 256,
+      "policy_version": 1,
+      "transcript_hex": "416c65612f456e74726f70792f7631000001010000010018021000003c0102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405060102030405061100006400010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001",
+      "final_entropy_hex": "8257324aa411998e24fbe57fce94cb78e83b6c2cfaeb5fed11c4cad3893a0f1a",
+      "mnemonic_indexes": [
+        1042,
+        1484,
+        1173,
+        577,
+        204,
+        1592,
+        1183,
+        997,
+        1022,
+        933,
+        406,
+        1934,
+        1053,
+        1456,
+        1439,
+        747,
+        767,
+        836,
+        905,
+        1197,
+        452,
+        1256,
+        483,
+        551
+      ],
+      "mnemonic_words": [
+        "liquid",
+        "ridge",
+        "naive",
+        "else",
+        "book",
+        "shove",
+        "negative",
+        "lake",
+        "lemon",
+        "input",
+        "crazy",
+        "vault",
+        "lonely",
+        "render",
+        "recycle",
+        "frost",
+        "garment",
+        "hammer",
+        "illness",
+        "noble",
+        "decade",
+        "other",
+        "detect",
+        "eager"
+      ],
+      "bip39_seed_hex": "6e1145e8b80a05fdc3b1ec6fc6f0f125f59f3aebfefd45e5a13d3aed1547620e1220c75909b08c74ab8f8c5b2682f5ce7d23d5f417df2cf81576b24cd1360361",
+      "master_fingerprint_hex": "47ddec14",
+      "addresses": {
+        "bip44": "1Ev2y1zLVg3KirMDc9sMKi4StfNTKeUtuB",
+        "bip49": "3Jxqnk9fCW7nPsugUtP6JW2WECcUdNwokx",
+        "bip84": "bc1q0nh45zqx9vh8sfft56jg4l4cqnqv5ucmsz5g65",
+        "bip86": "bc1pj5hxypf78rkspkd83cqdsp0cfjqymuqjejmuufh80vsc9axtau9qr0nxy7"
+      }
+    }
+  ]
+}

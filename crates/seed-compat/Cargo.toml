@@ -1,0 +1,16 @@
+[package]
+name = "seed-compat"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# `#![no_std]`, no `alloc` (IMPLEMENTATION_MAP_COMPAT.md §1 rule 7, §4
+# WP-C1). seed-compat is a reference/audit-only crate: it MAY depend on
+# `seed-core` (BIP39 + hash) and `seed-derive` (addresses, used only by
+# downstream WP-C4 CLI); it MUST NOT depend on `seed-protocol` (transcript/
+# policy) or any machine-RNG code (SPEC_COMPAT §9 hard isolation
+# requirements). This crate itself only needs `seed-core` for the digest +
+# BIP39 conversion (SPEC_COMPAT §12).
+[dependencies]
+seed-core = { path = "../seed-core" }

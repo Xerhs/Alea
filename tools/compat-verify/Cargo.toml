@@ -1,0 +1,36 @@
+[package]
+# WP-C4 (IMPLEMENTATION_MAP_COMPAT.md §4): compat-verify -- the ONLY
+# user-facing surface for seed-compat in v0.6.1 (SPEC_COMPAT §3, §7, §9;
+# review F6/Q1 cut the desktop-GUI and UEFI-test surfaces). Host-only tool;
+# never part of the production UEFI dependency graph (SPEC_COMPAT §9: this
+# crate is never one of `seed-uefi-production`'s dependency edges).
+name = "compat-verify"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "compat_verify"
+path = "src/lib.rs"
+
+[[bin]]
+name = "compat-verify"
+path = "src/main.rs"
+
+[dependencies]
+# Reuses the frozen contracts (IMPLEMENTATION_MAP_COMPAT.md §3) -- no new
+# third-party dependency. seed-compat provides the closed profile table +
+# compat_derive; seed-core provides sha256/bip39; seed-derive provides the
+# master fingerprint + 4 first-receive addresses (SPEC §24.2), reused
+# unchanged (SPEC_COMPAT §3: "Derivation values ... are computed by the CLI
+# via the existing seed-derive API from the mnemonic -- not re-implemented
+# here").
+seed-compat = { path = "../../crates/seed-compat" }
+seed-core = { path = "../../crates/seed-core" }
+seed-derive = { path = "../../crates/seed-derive" }
+# Already-reviewed workspace-pinned dependency (SPEC §3 table); reused here
+# only to scrub the CLI's own local key/chain-code/seed buffers after
+# computing the SPEC §24 verification values (SPEC §13, §20.3 hygiene),
+# same as `seed-derive` does internally -- not a new dependency addition.
+zeroize = { workspace = true }

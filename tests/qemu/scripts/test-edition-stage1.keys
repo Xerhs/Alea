@@ -1,0 +1,19 @@
+# tests/qemu/scripts/test-edition-stage1.keys
+#
+# `seed-uefi-test` has no landing launcher (SPEC §4.2: it is the rehearsal
+# edition, not the product surface) — it boots the watermark banner and drops
+# straight into Stage 1 PREPARE. This script proves the test-edition image
+# boots, watermarks itself, and renders the redesigned Stage 1 checklist; the
+# SPEC §11.2 virtualization gate stops it at the same place it stops the
+# production edition (see production-launcher-and-gates.keys for why).
+
+DELAY 90
+
+ECHO test-edition banner / Stage 1
+SHOT 01-test-edition-boot
+KEY 1 2 3
+WAIT 1
+SHOT 02-stage1-checked
+KEY ENTER
+WAIT 5
+SHOT 03-gates-refusal
