@@ -52,6 +52,19 @@ This is a single-maintainer key, not the multi-person production signing
 governance described in `docs/SIGNING-GOVERNANCE.md`; no release is
 production-signed.
 
+The same key signs each release's checksum file. With `SHA256SUMS` and
+`SHA256SUMS.sig` downloaded next to a clone:
+
+```
+ssh-keygen -Y verify -f allowed_signers \
+  -I 312983771+Xerhs@users.noreply.github.com \
+  -n file -s SHA256SUMS.sig < SHA256SUMS
+```
+
+This proves the checksum list is the one the key holder published — it
+does NOT make the `.efi` binaries Secure Boot-signed; that separate
+code-signing layer does not exist yet (see section 3 below).
+
 ## 1. The complete procedure (SPEC §10)
 
 Do these in order. Skipping steps, especially 1–4 and 8, defeats the

@@ -1,9 +1,18 @@
 ## Alea — air-gapped Bitcoin recovery-phrase generator
 
-**Reproducible, UNSIGNED build.** These artifacts are byte-for-byte reproducible
-from this tag's source; they are **not** code-signed (Secure Boot must be
-disabled to boot them — see the flashing notes below). Verify what you
-downloaded against `SHA256SUMS` before flashing.
+**Reproducible build; source tag and checksums signed; binaries NOT
+code-signed.** The git tag is SSH-signed and `SHA256SUMS.sig` signs the
+checksum file — verify both against the repository's `allowed_signers`
+key (`VERIFYING-MEDIA.md`). The `.efi` binaries themselves carry no
+Secure Boot signature (Secure Boot must be disabled to boot them — see
+the flashing notes below). Verify what you downloaded against
+`SHA256SUMS` before flashing:
+
+```
+ssh-keygen -Y verify -f allowed_signers \
+  -I 312983771+Xerhs@users.noreply.github.com \
+  -n file -s SHA256SUMS.sig < SHA256SUMS
+```
 
 ### Files
 
@@ -13,6 +22,7 @@ downloaded against `SHA256SUMS` before flashing.
 - `alea-x86_64-unsigned.efi` — the production UEFI payload on its own.
 - `alea-verify.efi` — the standalone chain-loaded verifier.
 - `SHA256SUMS` — checksums for the two payload artifacts above.
+- `SHA256SUMS.sig` — SSH signature over `SHA256SUMS`, verifiable against the repository's `allowed_signers` key.
 
 ### Booting on real hardware
 
