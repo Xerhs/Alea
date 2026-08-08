@@ -66,6 +66,18 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Restore the real tag object (actions/checkout clobbers annotated tags)
+        # actions/checkout maps `github.ref` to the peeled COMMIT sha, so
+        # the runner's local `refs/tags/<tag>` is a lightweight tag even
+        # when the pushed tag was annotated+signed (checkout issue #290).
+        # Without this re-fetch, the signed-tag gate below reads the
+        # commit object, finds no signature block, and fails every release
+        # from a genuinely signed tag. `--force` replaces the clobbered
+        # local ref with the true tag object from the server.
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+
       - name: Confirm a clean source tree (SPEC §32 "clean source tree")
         run: |
           set -euo pipefail
