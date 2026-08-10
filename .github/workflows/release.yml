@@ -264,13 +264,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Checkout MUST run before the artifact download: actions/checkout's
+      # default `clean: true` runs `git clean -ffdx`, which would delete the
+      # untracked release-out/ the download creates. Ordering checkout first
+      # (on the still-empty workspace) then downloading into release-out/
+      # keeps the gated artifacts intact for `gh release create` below.
+      - name: Checkout (release notes only)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Download the gated artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: alea-unsigned-${{ github.ref_name }}
           path: release-out
-      - name: Checkout (release notes only)
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Create the GitHub Release as a DRAFT (ALEA-2026-003)
         env:
           GH_TOKEN: ${{ github.token }}
