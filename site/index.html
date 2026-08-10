@@ -129,6 +129,7 @@
   <div class="wrap">
     <span class="brand">ALEA<span class="dot">·</span></span>
     <ul>
+      <li><a href="explained.html">Intro (EN/ΕΛ)</a></li>
       <li><a href="#what">What it is</a></li>
       <li><a href="#ceremony">The ceremony</a></li>
       <li><a href="#entropy">Entropy</a></li>
@@ -149,11 +150,14 @@
       <a class="btn primary" href="https://github.com/Xerhs/Alea/releases">Download a release</a>
       <a class="btn ghost" href="https://github.com/Xerhs/Alea">Read the source</a>
       <a class="btn ghost" href="#security">Security &amp; audit</a>
+      <a class="btn ghost" href="explained.html">New here? Plain-language intro · ΕΛ</a>
     </div>
 
     <div class="term" aria-hidden="true">
       <div class="bar"><i></i><i></i><i></i></div>
-      <pre><span class="c">ALEA · SEED CEREMONY                        0.10.0-beta</span>
+      <pre><span class="c">ALEA UEFI  --  offline recovery-phrase generator  (production)</span>
+<span class="c">0.12.0-beta</span>
+
 <span class="k">[1]</span> Generate a recovery phrase
 <span class="k">[2]</span> Verify a seed from another device   <span class="c">(loads the separate verifier)</span>
 <span class="k">[3]</span> Learn  <span class="c">(safety &amp; how the ceremony works)</span>
@@ -161,7 +165,7 @@
 <span class="k">[5]</span> About / audit status
 <span class="k">[6]</span> Exit  <span class="c">(power off / return to firmware)</span>
 
-<span class="g">›</span> one seed, every wallet type — <span class="c">the wallet picks the type, not you</span></pre>
+<span class="g">[1-6]</span> Select   <span class="g">[Esc]</span> Exit</pre>
     </div>
   </div>
 </header>
@@ -224,7 +228,7 @@
       <div class="step"><span class="n"></span><div><h3>Flash the whole USB</h3><p>Write the raw image to a USB device with Rufus (DD mode), balenaEtcher, or <code>dd</code>. It is a full GPT disk image.</p></div></div>
       <div class="step"><span class="n"></span><div><h3>Boot on real hardware</h3><p>Disable Secure Boot (the payload is unsigned), boot the USB in UEFI mode. Alea refuses virtualization, so the full ceremony only runs on a real machine.</p></div></div>
     </div>
-    <div class="note"><b>Rehearse first.</b> A desktop rehearsal edition (public test vectors only, permanently watermarked, <em>never</em> a real generator) lets you practice every screen and mechanically cross-check the implementation against its reference before you ever use real entropy.</div>
+    <div class="note"><b>Rehearse first.</b> A desktop rehearsal edition (public test vectors only, permanently watermarked, <em>never</em> a real generator) lets you practice every screen and mechanically cross-check the implementation against its reference before you ever use real entropy. There is also an <a href="https://github.com/Xerhs/Alea/tree/master/web">offline web verifier</a> — a single self-contained HTML file running the same Rust core as WebAssembly (verification only; it never generates) for cross-checking a seed's fingerprint and addresses on a computer you take offline.</div>
   </div>
 </section>
 
@@ -255,9 +259,11 @@
         <a href="https://github.com/Xerhs/Alea/blob/master/README.md">README</a>
       </div>
       <div><b>Docs</b>
+        <a href="explained.html">Explained (EN/ΕΛ)</a>
         <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">Security</a>
         <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">Entropy audit</a>
         <a href="https://github.com/Xerhs/Alea/blob/master/QUICKSTART.md">Quickstart</a>
+        <a href="https://github.com/Xerhs/Alea/tree/master/web">Offline web verifier</a>
       </div>
       <div><b>License</b>
         <a href="https://github.com/Xerhs/Alea/blob/master/LICENSE-MIT">MIT</a>
