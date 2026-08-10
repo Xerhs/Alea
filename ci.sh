@@ -574,4 +574,66 @@ if ! node web/test-wasm.mjs web/seed_web.opt.wasm; then
 fi
 echo "PASS: optimized web wasm reproduces the frozen public vectors."
 
+echo "== release-governance & workflow-security guards (2026-08-09 audit:"
+echo "   ALEA-2026-001/003/004/006/008) =="
+# These guards make the release-authorization design (docs/RELEASE-GOVERNANCE.md,
+# SPEC_AUDIT_REMEDIATION_2026-08-09) locally checkable on every push, so a
+# regression in the GitHub Actions security posture fails the SAME gate a
+# developer runs — not silently on a future tag push months later.
+WF_DIR=".github/workflows"
+
+# --- (a) action-pin gate (ALEA-2026-006) ---
+# Every third-party `uses:` MUST be pinned to a full 40-hex commit SHA; a
+# tag/branch ref (`@v4`, `@main`) is a mutable supply-chain input. Local
+# reusable workflows (`uses: ./...`) have no SHA to pin and are exempt.
+echo "-- (a) workflow action-pin gate: every third-party \`uses:\` is a 40-hex SHA --"
+pin_fail=0
+while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    case "$ref" in
+        ./*) continue ;;                       # local reusable workflow
+    esac
+    if ! printf '%s' "$ref" | grep -qE '@[0-9a-f]{40}$'; then
+        echo "FAIL: unpinned action reference (must be @<40-hex-sha>): $ref"
+        pin_fail=1
+    fi
+done < <(grep -rhE '^[[:space:]]*-?[[:space:]]*uses:' "$WF_DIR" \
+            | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//')
+[ "$pin_fail" -eq 0 ] || { echo "FAIL: workflow action-pin gate (ALEA-2026-006)."; exit 1; }
+echo "PASS: all workflow \`uses:\` refs are SHA-pinned or local reusable workflows."
+
+# --- (b) release-workflow parity guard (ALEA-2026-001/004) ---
+# The release pipeline's security depends on three structural facts in
+# release.yml. Assert each is present so a well-meaning refactor cannot
+# quietly drop the full-CI reuse, the job dependency, or the trust gate.
+echo "-- (b) release-workflow parity guard: reusable CI + needs + tag-trust gate --"
+REL="$WF_DIR/release.yml"
+grep -qE 'uses:[[:space:]]*\./\.github/workflows/ci\.yml' "$REL" \
+    || { echo "FAIL: release.yml no longer reuses ci.yml via workflow_call (ALEA-2026-004)."; exit 1; }
+grep -qE 'needs:[[:space:]]*full-ci' "$REL" \
+    || { echo "FAIL: release.yml build/gate job does not \`needs: full-ci\` (ALEA-2026-004)."; exit 1; }
+grep -q 'tag-trust-gate.sh' "$REL" \
+    || { echo "FAIL: release.yml no longer invokes tag-trust-gate.sh (ALEA-2026-001/004)."; exit 1; }
+# The publish job (the sole write-scoped job) must create a DRAFT only.
+grep -qE '(--draft\b|--draft=true)' "$REL" \
+    || { echo "FAIL: release.yml publish job no longer creates a DRAFT (ALEA-2026-003)."; exit 1; }
+echo "PASS: release.yml reuses ci.yml, needs full-ci, runs the trust gate, drafts only."
+
+# --- (c) advisory-db snapshot freshness (ALEA-2026-008) ---
+# Fail closed if the pinned RustSec advisory-db snapshot is stale, missing
+# or future-dated — the same enforcement release.yml runs, so a stale pin
+# is caught on push rather than at release time.
+echo "-- (c) advisory-db snapshot freshness gate --"
+cargo run --quiet -p release-verifier --bin advisory-db-age -- supply-chain/advisory-db.lock \
+    || { echo "FAIL: advisory-db snapshot freshness gate (ALEA-2026-008). See supply-chain/README.md."; exit 1; }
+
+# --- (d) release-authorization gate scripts host test (ALEA-2026-001/003/004) ---
+# Exercises tag-trust-gate.sh and release-verify-signature.sh against a
+# throwaway git repo + ed25519 key (skips cleanly if ssh-keygen is absent).
+echo "-- (d) release gate-scripts host test --"
+bash scripts/tests/gate-scripts.test.sh \
+    || { echo "FAIL: release gate-scripts host test (scripts/tests/gate-scripts.test.sh)."; exit 1; }
+
+echo "PASS: release-governance & workflow-security guards."
+
 echo "== ci.sh: all checks passed =="

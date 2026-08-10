@@ -54,7 +54,11 @@
 use seed_core::arena::SecretArena;
 use seed_core::contracts::{ArchId, WordCount};
 use seed_core::pipeline::ExtendedVerificationValues;
-use seed_platform_x86::input::{InputEvent, KeySource};
+use seed_platform_x86::input::KeySource;
+// `InputEvent` is only referenced by the test keystreams below (the optional
+// keyboard check made `block_for_enter`, its last non-test user, obsolete).
+#[cfg(test)]
+use seed_platform_x86::input::InputEvent;
 use seed_platform_x86::watchdog::{Watchdog, WatchdogTimer};
 use seed_protocol::state::{
     AppState, Event, PreSecretDisposition, StateMachine, WatchdogReassert, WatchdogReassertFailure,
@@ -673,14 +677,9 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
             // uses the empty passphrase; `[Y]` (only when the keyboard is
             // verified) advances to entry.
             AppState::PassphraseOffer => {
-                let entry_available = match p.passphrase_policy {
-                    PassphraseKeyboardPolicy::HostKeyboardTrusted => true,
-                    // SPEC_PASSPHRASE §8.2: the extended-charset self-test
-                    // is offered only when the user opts in; a failure/skip
-                    // is surfaced HERE, before any entry, so the user never
-                    // thinks they set a passphrase and silently gets empty.
-                    PassphraseKeyboardPolicy::RequireExtendedSelfTest => true,
-                };
+                // Passphrase entry is ALWAYS offered; the extended keyboard
+                // check below is optional and never disables it (2026-08-10).
+                let entry_available = true;
                 passphrase::render_offer(p.fb, entry_available);
                 match passphrase::read_offer_choice(p.secret_keys, entry_available) {
                     passphrase::OfferChoice::No => {
@@ -688,23 +687,30 @@ pub fn run_secret_flow<T: WatchdogTimer, SK: KeySource>(
                         transition(sm, watchdog, Event::PassphraseUseEmpty);
                     }
                     passphrase::OfferChoice::Yes => {
-                        // Fail-closed keyboard verification for the bootable
-                        // editions (SPEC_PASSPHRASE §8.2): extended-charset
-                        // failure disables PASSPHRASE ENTRY ONLY.
-                        let verified = match p.passphrase_policy {
-                            PassphraseKeyboardPolicy::HostKeyboardTrusted => true,
-                            PassphraseKeyboardPolicy::RequireExtendedSelfTest => {
-                                passphrase::run_extended_self_test(p.secret_keys, p.fb)
+                        // The extended printable-ASCII keyboard self-test is
+                        // OPTIONAL and ADVISORY (2026-08-10 field decision):
+                        // it is offered, never forced, and NEVER disables
+                        // entry. The re-entry confirmation
+                        // (AppState::PassphraseConfirm) is the real safety
+                        // net — a key the firmware can't deliver reliably
+                        // makes the two entries differ, caught on the user's
+                        // own passphrase. The desktop (host-trusted) edition
+                        // has no firmware check to offer.
+                        if let PassphraseKeyboardPolicy::RequireExtendedSelfTest =
+                            p.passphrase_policy
+                        {
+                            passphrase::render_optional_check(p.fb);
+                            if let passphrase::KeyboardCheckChoice::Run =
+                                passphrase::read_optional_check_choice(p.secret_keys)
+                            {
+                                // Advisory only: let the user watch each key
+                                // round-trip, but proceed to entry regardless
+                                // of the result (any wrong key or Escape just
+                                // ends the check early → straight to entry).
+                                let _ = passphrase::run_extended_self_test(p.secret_keys, p.fb);
                             }
-                        };
-                        if verified {
-                            transition(sm, watchdog, Event::PassphraseOfferYes);
-                        } else {
-                            passphrase::render_keyboard_unverified(p.fb);
-                            block_for_enter(p.secret_keys);
-                            arena.passphrase().scrub();
-                            transition(sm, watchdog, Event::PassphraseUseEmpty);
                         }
+                        transition(sm, watchdog, Event::PassphraseOfferYes);
                     }
                 }
             }
@@ -1197,14 +1203,6 @@ fn word_count_len(word_count: Option<WordCount>) -> usize {
         Some(WordCount::Twelve) => 12,
         Some(WordCount::TwentyFour) => 24,
         None => 0,
-    }
-}
-
-fn block_for_enter<K: KeySource + ?Sized>(keys: &mut K) {
-    loop {
-        if let InputEvent::Enter = keys.read_key_blocking() {
-            return;
-        }
     }
 }
 

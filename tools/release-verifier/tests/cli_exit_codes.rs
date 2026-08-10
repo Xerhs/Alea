@@ -162,3 +162,58 @@ fn corrupted_hash_plus_unauthenticated_minisig_reports_both_and_stays_nonzero() 
         "worst_exit must take the max across both independent findings; stdout was:\n{stdout}"
     );
 }
+
+// ---- ALEA-2026-007: SSH SHA256SUMS.sig support + --require-signature ----
+
+/// Core regression: `--require-signature` on a clean release that ships NO
+/// detached signature must exit 3, never 0 (the old minisign-only path
+/// silently passed here).
+#[test]
+fn require_signature_with_no_signature_present_exits_nonzero() {
+    let dir = clean_release_dir("require-no-sig");
+    let (code, stdout) = run(&dir, &["--require-signature"]);
+    assert_eq!(code, 3, "must fail closed; stdout:\n{stdout}");
+    assert!(stdout.contains("ships no"), "stdout:\n{stdout}");
+}
+
+/// Over-correction guard: without `--require-signature`, no signature
+/// stays exit 0 (back-compat).
+#[test]
+fn no_signature_present_without_require_still_exits_zero() {
+    let dir = clean_release_dir("no-sig-no-require");
+    let (code, _stdout) = run(&dir, &[]);
+    assert_eq!(code, 0);
+}
+
+/// `SHA256SUMS.sig` present with no `--allowed-signers`/`--signer-identity`:
+/// WARN + exit 3 (no trust root); never 0, never a release-dir fallback
+/// (ALEA-2026-001).
+#[test]
+fn ssh_sig_present_without_allowed_signers_exits_3() {
+    let dir = clean_release_dir("ssh-sig-notrust");
+    write(&dir, "SHA256SUMS.sig", b"untrusted-ssh-sig-fixture\n");
+    let (code, stdout) = run(&dir, &[]);
+    assert_eq!(code, 3, "stdout:\n{stdout}");
+    assert!(stdout.contains("WARNING"), "stdout:\n{stdout}");
+    assert!(stdout.contains("out-of-band"), "stdout:\n{stdout}");
+}
+
+/// `SHA256SUMS.sig` with a bogus `--ssh-keygen-bin`: WARN + exit 3, never 0.
+#[test]
+fn ssh_sig_present_with_missing_ssh_keygen_binary_exits_3() {
+    let dir = clean_release_dir("ssh-sig-notool");
+    write(&dir, "SHA256SUMS.sig", b"untrusted-ssh-sig-fixture\n");
+    let (code, stdout) = run(
+        &dir,
+        &[
+            "--allowed-signers",
+            "/tmp/allowed_signers",
+            "--signer-identity",
+            "someone@example",
+            "--ssh-keygen-bin",
+            "definitely-not-a-real-ssh-keygen-xyz",
+        ],
+    );
+    assert_eq!(code, 3, "stdout:\n{stdout}");
+    assert!(stdout.contains("was not found"), "stdout:\n{stdout}");
+}

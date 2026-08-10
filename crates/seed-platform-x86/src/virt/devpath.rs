@@ -158,7 +158,20 @@ pub mod uefi_backend {
 
     /// SPEC §11.2 — scan PCI bus 0 (function 0 of every device 0-31, plus
     /// every function of any multi-function device) on each reachable PCI
-    /// root bridge, and return every vendor:device ID found.
+    /// root bridge, and return the virtual-platform marker IDs found.
+    ///
+    /// ALEA-2026-005: this classifies each `(vendor, device)` **inline**
+    /// (via [`super::classify_pci_id`]) and retains ONLY the matches,
+    /// always completing the full `dev 0..32 / fun 0..8` enumeration.
+    /// The earlier version stored the first [`MAX_PCI_IDS`] raw IDs and
+    /// `break`-ed out once that buffer filled — on a real machine, whose
+    /// bus 0 routinely exposes far more than 8 functions (host bridge,
+    /// root ports, iGPU, xHCI, SATA, LPC, SMBus, audio…), that could fill
+    /// the buffer with benign devices and never reach a virtual GPU/input
+    /// marker at a higher device number, silently defeating the detector.
+    /// Retaining only matches makes that impossible: matches are 0-1 in
+    /// practice, so the buffer never fills for an ordinary machine and the
+    /// scan always runs to completion.
     ///
     /// Scope is deliberately bounded to bus 0: every reviewed virtual
     /// platform (QEMU/OVMF, VirtualBox, VMware, Hyper-V Gen1) enumerates
@@ -179,15 +192,35 @@ pub mod uefi_backend {
             return FixedPciIds { ids, count };
         };
 
-        'outer: for &handle in handles {
-            let Ok(mut bridge) = boot::open_protocol_exclusive::<PciRootBridgeIo>(handle) else {
+        for &handle in handles {
+            // NON-EXCLUSIVE open only (ALEA-2026-005 follow-up). Opening the
+            // PCI root bridge EXCLUSIVE makes the firmware disconnect its own
+            // PCI bus driver and, recursively, the GPU driver producing the
+            // GOP framebuffer the app is rendering into — black-screening the
+            // display on real (Phoenix-class) hardware with no error. This is
+            // the SAME exclusive-open hazard already documented for GOP
+            // (seed-flow `ProdGraphicsGate`) and TPM (`firmware_wiring.rs`); a
+            // read-only config-space scan must never take the bridge
+            // exclusively. `GetProtocol` borrows the protocol without
+            // disturbing the firmware's ownership.
+            let params = boot::OpenProtocolParams {
+                handle,
+                agent: boot::image_handle(),
+                controller: None,
+            };
+            // SAFETY: GetProtocol does not disconnect other agents' drivers;
+            // we only read config space and drop the handle at end of scope.
+            let opened = unsafe {
+                boot::open_protocol::<PciRootBridgeIo>(
+                    params,
+                    boot::OpenProtocolAttributes::GetProtocol,
+                )
+            };
+            let Ok(mut bridge) = opened else {
                 continue;
             };
             for dev in 0..32u8 {
                 for fun in 0..8u8 {
-                    if count >= MAX_PCI_IDS {
-                        break 'outer;
-                    }
                     let addr = PciIoAddress::new(0, dev, fun);
                     let Ok(vendor) = bridge.pci().read_one::<u16>(addr) else {
                         continue;
@@ -200,8 +233,15 @@ pub mod uefi_backend {
                         .pci()
                         .read_one::<u16>(addr.with_register(2))
                         .unwrap_or(0xFFFF);
-                    ids[count] = PciId { vendor, device };
-                    count += 1;
+                    // Retain only classified virtual-marker matches (the
+                    // full scan still runs to completion). Matches are
+                    // rare; the buffer only fills on an absurdly virtual
+                    // machine, in which case detection has already
+                    // succeeded and dropping further matches is harmless.
+                    if super::classify_pci_id(vendor, device).is_some() && count < MAX_PCI_IDS {
+                        ids[count] = PciId { vendor, device };
+                        count += 1;
+                    }
                 }
             }
         }

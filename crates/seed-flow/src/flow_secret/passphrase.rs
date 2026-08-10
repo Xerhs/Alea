@@ -124,6 +124,59 @@ pub fn read_offer_choice<K: KeySource + ?Sized>(keys: &mut K, entry_available: b
 }
 
 // ============================================================================
+// Optional keyboard check (2026-08-10): the extended printable-ASCII self-test
+// is OFFERED, never forced, and NEVER disables passphrase entry. The re-entry
+// confirmation (typing the passphrase twice) is the real safety net — a key
+// the firmware can't deliver reliably makes the two entries differ, caught on
+// the user's OWN passphrase rather than via a 95-key drill.
+// ============================================================================
+
+/// Whether the user wants to run the optional keyboard check before entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyboardCheckChoice {
+    /// Skip the check and go straight to passphrase entry.
+    Skip,
+    /// Run the extended printable-ASCII keyboard check first (advisory only).
+    Run,
+}
+
+const OPT_CHECK_TITLE: &str = "PASSPHRASE - KEYBOARD CHECK IS OPTIONAL";
+const OPT_CHECK_1: &str =
+    "Type your passphrase now, or first check that every key works on this keyboard.";
+const OPT_CHECK_2: &str =
+    "You will type the passphrase TWICE; if a key misbehaves the two entries will";
+const OPT_CHECK_3: &str = "not match, so the check is optional - most people skip it.";
+/// Prompt for the optional keyboard check (shown after the user opts in
+/// with `[Y]`). `[Enter]` skips to entry; `[T]` runs the advisory check.
+pub const OPT_CHECK_PROMPT: &str = "[Enter] Type passphrase now      [T] Run keyboard check first";
+
+/// Render the optional-keyboard-check prompt.
+pub fn render_optional_check(fb: &mut dyn Framebuffer) {
+    seed_gop_ui::font::scrub_fill(fb, 0);
+    draw_lines(
+        fb,
+        &[OPT_CHECK_TITLE, "", OPT_CHECK_1, OPT_CHECK_2, OPT_CHECK_3, "", OPT_CHECK_PROMPT],
+    );
+}
+
+/// Block until the user chooses whether to run the optional keyboard check.
+/// `[T]` runs it; `[Enter]`, `[N]`, or Escape skip straight to entry.
+pub fn read_optional_check_choice<K: KeySource + ?Sized>(keys: &mut K) -> KeyboardCheckChoice {
+    loop {
+        match keys.read_key_blocking() {
+            InputEvent::Char(c) if c.eq_ignore_ascii_case(&'t') => {
+                return KeyboardCheckChoice::Run;
+            }
+            InputEvent::Enter | InputEvent::Escape => return KeyboardCheckChoice::Skip,
+            InputEvent::Char(c) if c.eq_ignore_ascii_case(&'n') => {
+                return KeyboardCheckChoice::Skip;
+            }
+            _ => {}
+        }
+    }
+}
+
+// ============================================================================
 // SPEC_PASSPHRASE §4.1/§4.3 — masked entry
 // ============================================================================
 
@@ -131,6 +184,13 @@ const ENTRY_TITLE_1: &str = "ENTER PASSPHRASE (masked)";
 const ENTRY_TITLE_2: &str = "RE-ENTER PASSPHRASE (masked; must match)";
 const ENTRY_HELP: &str = "Type your passphrase. Printable ASCII only (letters, digits, space, punctuation).";
 const ENTRY_KEYS: &str = "[Enter] Commit   [Backspace] Delete   [Esc] Cancel (use empty passphrase)";
+/// Plain-language guide shown above the first passphrase entry (2026-08-10).
+const ENTRY_GUIDE_1: &str =
+    "A passphrase is an OPTIONAL extra secret - the BIP39 \"25th word\".";
+const ENTRY_GUIDE_2: &str =
+    "It is CASE-SENSITIVE and you must reproduce it EXACTLY to recover funds.";
+const ENTRY_GUIDE_3: &str =
+    "Nothing is displayed: each key you type shows as one * . Type carefully.";
 const ENTRY_MASK_GLYPH: char = '*';
 /// SPEC_PASSPHRASE §3.2: shown when a non-printable-ASCII / non-ASCII key
 /// is refused (never silently accepted).
@@ -180,21 +240,44 @@ fn render_entry(fb: &mut dyn Framebuffer, phase: EntryPhase, len: usize, banner:
         EntryPhase::Confirm => ENTRY_TITLE_2,
     };
     let banner_line = banner.unwrap_or("");
-    draw_lines(
-        fb,
-        &[
-            title,
-            "",
-            ENTRY_HELP,
-            "",
-            mask.as_str(),
-            count.as_str(),
-            "",
-            banner_line,
-            "",
-            ENTRY_KEYS,
-        ],
-    );
+    match phase {
+        // First entry: show the full guide.
+        EntryPhase::First => draw_lines(
+            fb,
+            &[
+                title,
+                "",
+                ENTRY_GUIDE_1,
+                ENTRY_GUIDE_2,
+                ENTRY_GUIDE_3,
+                "",
+                ENTRY_HELP,
+                "",
+                mask.as_str(),
+                count.as_str(),
+                "",
+                banner_line,
+                "",
+                ENTRY_KEYS,
+            ],
+        ),
+        // Confirm entry: keep it terse (the guide was just shown).
+        EntryPhase::Confirm => draw_lines(
+            fb,
+            &[
+                title,
+                "",
+                ENTRY_HELP,
+                "",
+                mask.as_str(),
+                count.as_str(),
+                "",
+                banner_line,
+                "",
+                ENTRY_KEYS,
+            ],
+        ),
+    }
 }
 
 /// Drive one masked passphrase entry into `buf` (an arena-resident
@@ -294,7 +377,13 @@ const EXT_TITLE: &str = "KEYBOARD CHECK FOR PASSPHRASE (type each shown key)";
 fn render_extended_step(fb: &mut dyn Framebuffer, expected: char) {
     seed_gop_ui::font::scrub_fill(fb, 0);
     let mut line = LineBuf::new();
-    let _ = write!(line, "Press:  {expected}");
+    // SPACE (0x20) renders invisibly; label it so the user knows to press
+    // the space bar instead of guessing (2026-08-10 field confusion).
+    if expected == ' ' {
+        let _ = write!(line, "Press:  SPACE  (the space bar)");
+    } else {
+        let _ = write!(line, "Press:  {expected}");
+    }
     draw_lines(fb, &[EXT_TITLE, "", line.as_str()]);
 }
 
@@ -346,6 +435,23 @@ mod tests {
         assert_eq!(read_offer_choice(&mut k, true), OfferChoice::Yes);
         let mut k = ScriptedKeys::new(std::vec![InputEvent::Char('N')]);
         assert_eq!(read_offer_choice(&mut k, true), OfferChoice::No);
+    }
+
+    #[test]
+    fn optional_check_choice_runs_on_t_and_skips_otherwise() {
+        // [T]/[t] runs the advisory check.
+        let mut k = ScriptedKeys::new(std::vec![InputEvent::Char('T')]);
+        assert_eq!(read_optional_check_choice(&mut k), KeyboardCheckChoice::Run);
+        let mut k = ScriptedKeys::new(std::vec![InputEvent::Char('t')]);
+        assert_eq!(read_optional_check_choice(&mut k), KeyboardCheckChoice::Run);
+        // [Enter], Escape, and [N] all skip straight to entry.
+        for ev in [InputEvent::Enter, InputEvent::Escape, InputEvent::Char('n')] {
+            let mut k = ScriptedKeys::new(std::vec![ev]);
+            assert_eq!(read_optional_check_choice(&mut k), KeyboardCheckChoice::Skip);
+        }
+        // Stray keys are ignored until a real choice is made.
+        let mut k = ScriptedKeys::new(std::vec![InputEvent::Char('z'), InputEvent::Enter]);
+        assert_eq!(read_optional_check_choice(&mut k), KeyboardCheckChoice::Skip);
     }
 
     #[test]

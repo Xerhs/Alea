@@ -1,0 +1,84 @@
+# release-publish (WP-32, ALEA-2026-003): the fail-closed second phase of
+# the draft-first release flow.
+#
+# `release.yml` builds, gates, and creates the GitHub Release as a DRAFT.
+# The maintainer then, OFFLINE, signs the exact SHA256SUMS with the SSH
+# tag-signing key and uploads SHA256SUMS.sig to the draft (the private key
+# never enters CI). Running THIS workflow verifies that detached signature
+# against the committed allowed_signers and only then un-drafts the
+# release — so no public release ever exists without a present, verified
+# signature. See docs/RELEASE-GOVERNANCE.md.
+name: release-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to verify and publish (e.g. v0.11.0-beta)"
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    # (ALEA-2026-006) write scope only here, only to flip the draft flag.
+    permissions:
+      contents: write
+    # (ALEA-2026-001) protected Environment: gate the un-draft behind
+    # whatever reviewer/wait-timer policy the `release` Environment carries.
+    environment: release
+    steps:
+      - name: Checkout the tag (for the committed allowed_signers keyring)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download the draft release's SHA256SUMS + SHA256SUMS.sig
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p relverify
+          # Fetch just the two files needed to authenticate the checksum
+          # list. `gh release download` works on drafts for a token with
+          # contents access.
+          gh release download "$TAG" --dir relverify \
+            --pattern SHA256SUMS --pattern SHA256SUMS.sig
+
+      - name: Verify the detached SSH signature (fail-closed) — ALEA-2026-003
+        env:
+          EXPECTED_ID: ${{ vars.ALEA_TAG_SIGNER_ID }}
+        run: |
+          set -euo pipefail
+          # ALEA_TAG_SIGNER_ID is the signer principal in allowed_signers
+          # (the noreply identity); set it in the protected `release`
+          # Environment alongside ALEA_TAG_SIGNER_FPR. Fail closed if unset
+          # — never publish without a verified signer identity.
+          if [ -z "${EXPECTED_ID:-}" ]; then
+            echo "FAIL: ALEA_TAG_SIGNER_ID is not set in the release Environment —"
+            echo "      cannot verify the release signature; refusing to publish."
+            exit 1
+          fi
+          bash scripts/release-verify-signature.sh relverify allowed_signers "$EXPECTED_ID"
+
+      - name: Un-draft the release (make it public)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          # Also upload the verified .sig to the release assets if it is not
+          # already there (idempotent), then flip the draft flag.
+          gh release upload "$TAG" relverify/SHA256SUMS.sig --clobber || true
+          gh release edit "$TAG" --draft=false
+          echo "Published release $TAG (signature verified)."

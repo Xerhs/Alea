@@ -308,6 +308,44 @@ fn scrub_byte(b: &mut u8) {
 }
 
 // ---------------------------------------------------------------------
+// Firmware printable-key decoding (SPEC §11.5, SPEC_PASSPHRASE §3.2)
+// ---------------------------------------------------------------------
+
+/// UTF-16/UEFI carriage-return code point used for the Enter key.
+#[cfg(any(target_os = "uefi", test))]
+const CHAR_CARRIAGE_RETURN: u16 = 0x0D;
+/// UTF-16/UEFI backspace code point.
+#[cfg(any(target_os = "uefi", test))]
+const CHAR_BACKSPACE: u16 = 0x08;
+
+/// Decode a UEFI `Key::Printable` code point into an [`InputEvent`].
+///
+/// Extracted from the (UEFI-only) firmware backend so its printable-charset
+/// decision is host-testable. Enter/Backspace are recognised first; then the
+/// **full** printable-ASCII charset the passphrase needs (SPEC_PASSPHRASE
+/// §3.2: `0x20` SPACE .. `0x7E` `~`) maps to [`InputEvent::Char`]; everything
+/// else is [`InputEvent::Other`].
+///
+/// The accepted range INCLUDES SPACE (`0x20`). `char::is_ascii_graphic()` is
+/// `0x21..=0x7E` and previously stood in for "printable" here — it silently
+/// dropped SPACE, which (a) collided with the extended keyboard self-test's
+/// first required key (`0x20`), failing it on the very first keystroke and
+/// disabling passphrase entry on every real device ("Keyboard check
+/// failed"), and (b) made SPACE untypeable inside a passphrase even though
+/// it is a valid passphrase character.
+#[cfg(any(target_os = "uefi", test))]
+fn map_printable_code(code: u16) -> InputEvent {
+    match code {
+        CHAR_CARRIAGE_RETURN => InputEvent::Enter,
+        CHAR_BACKSPACE => InputEvent::Backspace,
+        _ => match char::try_from(u32::from(code)) {
+            Ok(c) if c == ' ' || c.is_ascii_graphic() => InputEvent::Char(c),
+            _ => InputEvent::Other,
+        },
+    }
+}
+
+// ---------------------------------------------------------------------
 // Real firmware backend (SPEC §11.5, §12.3) — only linked into UEFI
 // builds.
 // ---------------------------------------------------------------------
@@ -318,13 +356,8 @@ fn scrub_byte(b: &mut u8) {
 /// runs.
 #[cfg(target_os = "uefi")]
 pub mod uefi_backend {
-    use super::{InputEvent, KeySource};
+    use super::{map_printable_code, InputEvent, KeySource};
     use uefi::proto::console::text::{Input, Key, ScanCode};
-
-    /// UTF-16/UEFI carriage-return code point used for the Enter key.
-    const CHAR_CARRIAGE_RETURN: u16 = 0x0D;
-    /// UTF-16/UEFI backspace code point.
-    const CHAR_BACKSPACE: u16 = 0x08;
 
     /// [`KeySource`] backed by the firmware's `SIMPLE_TEXT_INPUT_PROTOCOL`.
     ///
@@ -356,14 +389,7 @@ pub mod uefi_backend {
                 match self.input.read_key() {
                     Ok(Some(Key::Printable(ch))) => {
                         let code: u16 = ch.into();
-                        return match code {
-                            CHAR_CARRIAGE_RETURN => InputEvent::Enter,
-                            CHAR_BACKSPACE => InputEvent::Backspace,
-                            _ => match char::try_from(u32::from(code)) {
-                                Ok(c) if c.is_ascii_graphic() => InputEvent::Char(c),
-                                _ => InputEvent::Other,
-                            },
-                        };
+                        return map_printable_code(code);
                     }
                     Ok(Some(Key::Special(ScanCode::ESCAPE))) => return InputEvent::Escape,
                     Ok(Some(Key::Special(_))) => return InputEvent::Other,
@@ -555,6 +581,46 @@ mod tests {
         let mut src = ScriptedKeySource::new(events);
         let err = run_extended_ascii_self_test(&mut src, |_| {}).unwrap_err();
         assert_eq!(err.expected, b'~');
+    }
+
+    // ---- map_printable_code (firmware key decoding, SPEC_PASSPHRASE §3.2) ----
+
+    #[test]
+    fn map_printable_code_decodes_space_as_char() {
+        // Regression: SPACE (0x20) is the FIRST key the extended passphrase
+        // self-test requires and a valid passphrase character. The decoder
+        // must deliver it as `Char(' ')`, not `Other` — dropping it disabled
+        // passphrase entry on all hardware ("Keyboard check failed").
+        assert_eq!(map_printable_code(0x20), InputEvent::Char(' '));
+    }
+
+    #[test]
+    fn map_printable_code_decodes_enter_backspace_and_ascii_bounds() {
+        assert_eq!(map_printable_code(0x0D), InputEvent::Enter);
+        assert_eq!(map_printable_code(0x08), InputEvent::Backspace);
+        assert_eq!(map_printable_code(0x21), InputEvent::Char('!')); // low graphic
+        assert_eq!(map_printable_code(0x7E), InputEvent::Char('~')); // high graphic
+    }
+
+    #[test]
+    fn map_printable_code_rejects_non_printable() {
+        assert_eq!(map_printable_code(0x1F), InputEvent::Other); // below SPACE
+        assert_eq!(map_printable_code(0x7F), InputEvent::Other); // DEL
+        assert_eq!(map_printable_code(0x00), InputEvent::Other); // NUL
+    }
+
+    #[test]
+    fn decoder_output_satisfies_the_extended_self_test_end_to_end() {
+        // The decoder and the extended self-test must agree on the exact
+        // charset: feeding every 0x20..=0x7E code point through the decoder
+        // must produce a keystream that passes the self-test. This is the
+        // contract that was violated (decoder dropped SPACE while the
+        // self-test required it).
+        let events: std::vec::Vec<InputEvent> = (EXT_ASCII_MIN..=EXT_ASCII_MAX)
+            .map(|b| map_printable_code(u16::from(b)))
+            .collect();
+        let mut src = ScriptedKeySource::new(events);
+        assert!(run_extended_ascii_self_test(&mut src, |_| {}).is_ok());
     }
 
     // ---- read_hidden ----

@@ -135,15 +135,27 @@ this is a recommendation, not a requirement.
 `tools/release-verifier` automates steps 2 (the cryptographic half of it
 — it does not replace cross-channel fingerprint checking) and 7 for the
 files it can reach in an already-downloaded release directory: recomputing
-every file's SHA-256 against `SHA256SUMS`, and checking
-`SHA256SUMS.minisig` if present.
+every file's SHA-256 against `SHA256SUMS`, and checking the detached
+signature over it — the current `SHA256SUMS.sig` (SSH, `ssh-keygen -Y
+verify`) and/or the legacy `SHA256SUMS.minisig` (`minisign`).
+
+Current releases ship `SHA256SUMS.sig` (SSH), so verify against the
+committed `allowed_signers` key (obtained/cross-checked per §0a, never
+merely trusted because it came in the download):
 
 ```sh
 source "$HOME/.cargo/env"
 export CARGO_TARGET_DIR="$HOME/.cache/sf-target/<your-tag>"
 cargo run --locked -p release-verifier -- /path/to/release-dir \
-  --pubkey @/path/to/alea-signing.pub
+  --allowed-signers /path/to/allowed_signers \
+  --signer-identity 312983771+Xerhs@users.noreply.github.com \
+  --require-signature
 ```
+
+`--require-signature` makes a release that ships **no** detached
+signature at all fail (exit 3) instead of passing — use it whenever you
+expect an authenticated release. For an older minisign-signed release,
+pass `--pubkey @/path/to/alea-signing.pub` instead of the two SSH flags.
 
 - `<release-dir>` must contain `SHA256SUMS` (and everything it lists —
   the release archive contents, per SPEC §32).
@@ -152,27 +164,32 @@ cargo run --locked -p release-verifier -- /path/to/release-dir \
   project's published `.pub` key, obtained and cross-checked per step 2
   above, never merely trusted because it was bundled in the same
   download.
-- If `SHA256SUMS.minisig` is present but no `--pubkey` is given, or the
-  `minisign` binary is not installed, `release-verifier` prints a
-  **warning**, not a silent pass — it never reports a signature as
-  checked when it wasn't. In that case it prints the exact manual
-  `minisign -Vm ... -x ... -p ...` command to run instead once you have
-  `minisign` and the key available; see
-  <https://jedisct1.github.io/minisign/> for installing `minisign`
-  itself (`release-verifier` deliberately does not vendor any signature
-  cryptography of its own — see `tools/release-verifier/src/lib.rs`'s
-  module doc comment for why).
+- `--allowed-signers` is the out-of-band SSH keyring (the repo's
+  `allowed_signers`, obtained/cross-checked per §0a) and `--signer-identity`
+  the principal in it; the verifier **never** falls back to a keyring
+  bundled inside the release directory it is checking. `--pubkey` (raw
+  `RW...` minisign key or `@/path/to/file`) covers the legacy minisign
+  form.
+- If a detached signature (`SHA256SUMS.sig` or `SHA256SUMS.minisig`) is
+  present but cannot be checked — no key/keyring given, or the
+  `ssh-keygen`/`minisign` binary is missing — `release-verifier` prints a
+  **warning** and exits nonzero, never a silent pass; it never reports a
+  signature as checked when it wasn't, and prints the exact manual
+  command to run once the tool/key is available. See §0a for the manual
+  `ssh-keygen -Y verify` command; `release-verifier` deliberately vendors
+  no signature cryptography (see `tools/release-verifier/src/lib.rs`).
 
 Exit codes: `0` = every `SHA256SUMS` entry matched and the signature
-check either passed or found nothing to check (no `SHA256SUMS.minisig`
-present at all); `1` = a file's hash did not match, was missing, or
-`SHA256SUMS` could not be read; `2` = `minisign` positively reported an
-**invalid** signature (treat this as a serious finding — a tampered or
-wrong-key release — not a warning); `3` = `SHA256SUMS.minisig` **was**
-present but could not be cryptographically checked (no `--pubkey` was
-given, or `minisign` is not installed). Exit code `3` is deliberately
-never `0`: a hash re-derived from files sitting in the same release
-directory you downloaded proves nothing if that source was compromised
+check either passed or found nothing to check (and `--require-signature`
+was not given); `1` = a file's hash did not match, was missing, or
+`SHA256SUMS` could not be read; `2` = a signature was positively reported
+**invalid** (tampered or wrong-key release — a serious finding, not a
+warning); `3` = a detached signature was present but could not be
+cryptographically checked (no key/keyring, or the tool is not installed),
+**or** `--require-signature` was given and the release ships no signature
+at all. Exit code `3` is deliberately never `0`: a hash re-derived from
+files sitting in the same release directory you downloaded proves nothing
+if that source was compromised
 (SPEC §10), so a CI script or wrapper that gates only on "exit code
 zero means verified" MUST NOT treat this case as a pass — it must
 either fail the build or explicitly special-case exit code `3` as
