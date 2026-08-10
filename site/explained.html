@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alea — explained</title>
+<meta name="description" content="A plain-language introduction to Alea, the offline Bitcoin recovery-phrase generator — in English and Greek. Alea creates a wallet's backup words from dice and coins you roll yourself, before any operating system loads.">
+<style>
+  :root{
+    --ground:#F1F0EC; --surface:#FBFAF7; --ink:#1C1F26; --muted:#6A6F7B;
+    --line:#E3E1DA; --accent:#B07D2E; --accent-ink:#8A5F1E; --accent-soft:rgba(176,125,46,.12);
+    --die:#F7F4EC; --die-line:#DAD5C7; --pip:#2A2C33; --good:#2F7D5B;
+    --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code","Segoe UI Mono",Menlo,Consolas,monospace;
+    --maxw:72ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#14161C; --surface:#1B1E27; --ink:#E9E7DF; --muted:#969CAA;
+      --line:#2A2E39; --accent:#D6A24B; --accent-ink:#E4B871; --accent-soft:rgba(214,162,75,.15);
+      --die:#232631; --die-line:#333748; --pip:#EDEAE0; --good:#63C39A;
+    }
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-sans);
+    line-height:1.7;font-size:1.06rem;-webkit-font-smoothing:antialiased;letter-spacing:.005em}
+  ::selection{background:var(--accent-soft)}
+  a{color:var(--accent-ink);text-underline-offset:.18em;text-decoration-thickness:.06em}
+  a:focus-visible,button:focus-visible{outline:2.5px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+  .wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:22px}
+  .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent-ink);font-weight:600}
+
+  /* end-of-page call to the technical site */
+  .endcta{border-top:1px solid var(--line);padding-top:34px}
+  .endcta .eyebrow{display:block;margin-bottom:12px}
+  .cta-btn{display:inline-block;margin-top:20px;font-family:var(--font-mono);font-weight:600;
+    font-size:.92rem;letter-spacing:.03em;text-decoration:none;background:var(--accent);color:#fff;
+    padding:13px 22px;border-radius:11px;transition:.18s}
+  .cta-btn:hover{filter:brightness(1.06);text-decoration:none}
+  @media (prefers-color-scheme:dark){.cta-btn{color:#14161C}}
+
+  /* header */
+  header{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    max-width:var(--maxw);margin-inline:auto;padding:13px 22px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:-.01em;font-size:1.12rem}
+  .brand a{color:inherit;text-decoration:none}
+  .mark{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--die-line);background:var(--die);
+    display:grid;grid-template-columns:repeat(3,1fr);padding:3px;gap:1px}
+  .mark span{border-radius:50%;background:transparent}
+  .mark span.on{background:var(--pip)}
+  .langtoggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+  .langtoggle button{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.06em;font-weight:600;
+    border:0;background:transparent;color:var(--muted);padding:5px 12px;border-radius:999px;cursor:pointer;transition:.18s}
+  .langtoggle button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  @media (prefers-color-scheme:dark){.langtoggle button[aria-pressed="true"]{color:#14161C}}
+
+  /* hero */
+  .hero{padding:64px 0 30px}
+  .hero .eyebrow{display:block;margin-bottom:18px}
+  h1{font-size:clamp(2.3rem,6.2vw,3.9rem);line-height:1.04;letter-spacing:-.025em;font-weight:800;
+    margin:0 0 22px;text-wrap:balance;max-width:20ch}
+  .lead{font-size:clamp(1.08rem,2.2vw,1.28rem);color:var(--muted);max-width:60ch;margin:0}
+  .lead b{color:var(--ink);font-weight:600}
+
+  .dicerow{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:44px 0 8px}
+  .die{width:60px;height:60px;border-radius:13px;background:var(--die);border:1px solid var(--die-line);
+    display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:9px;gap:4px;
+    box-shadow:0 10px 24px -14px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.35);
+    animation:settle .7s cubic-bezier(.2,.8,.25,1) backwards}
+  .die .pip-cell{border-radius:50%}
+  .die .pip-cell.on{background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--pip) 78%,#fff),var(--pip))}
+  .coin{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:1.5rem;
+    color:#fff;background:radial-gradient(circle at 34% 28%,var(--accent-ink),var(--accent));
+    border:1px solid color-mix(in srgb,var(--accent) 60%,#000 15%);
+    box-shadow:0 10px 24px -14px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4);
+    animation:settle .7s cubic-bezier(.2,.8,.25,1) backwards}
+  @media (prefers-color-scheme:dark){.coin{color:#14161C}}
+  @keyframes settle{from{opacity:0;transform:translateY(-14px) rotate(-9deg)}to{opacity:1;transform:none}}
+
+  /* sections */
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  h2{font-size:clamp(1.5rem,3.4vw,2rem);line-height:1.12;letter-spacing:-.02em;font-weight:750;margin:6px 0 20px;text-wrap:balance}
+  p{margin:0 0 1em}
+  .sub{color:var(--muted)}
+
+  /* need strip */
+  .need{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    display:flex;gap:14px;align-items:flex-start}
+  .need .k{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-ink);font-weight:600;white-space:nowrap;padding-top:.18em}
+
+  /* ideas */
+  .ideas{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+  @media (max-width:640px){.ideas{grid-template-columns:1fr}}
+  .idea{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 22px 20px;transition:.2s}
+  .idea:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));transform:translateY(-2px)}
+  .idea .n{font-family:var(--font-mono);font-size:.78rem;color:var(--accent-ink);font-weight:700}
+  .idea h3{font-size:1.16rem;letter-spacing:-.01em;margin:8px 0 8px;font-weight:700}
+  .idea p{margin:0;color:var(--muted);font-size:.99rem}
+
+  /* comparison */
+  .cmp{display:grid;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+  .cmp .row{display:grid;grid-template-columns:minmax(120px,.9fr) 1.3fr 1.3fr;border-top:1px solid var(--line)}
+  .cmp .row:first-child{border-top:0}
+  .cmp .row.head{background:transparent}
+  .cmp .cell{padding:14px 16px;border-left:1px solid var(--line);font-size:.98rem}
+  .cmp .cell:first-child{border-left:0}
+  .cmp .asp{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center}
+  .cmp .head .cell{font-weight:700;letter-spacing:-.01em;font-size:1rem}
+  .cmp .head .alea{color:var(--accent-ink)}
+  .cmp .alea{background:var(--accent-soft)}
+  .cmp .alea .tick{color:var(--good);font-weight:700;margin-right:.4em}
+  .cmp .other{color:var(--muted)}
+  .cmp .other .dash{color:var(--muted);margin-right:.4em}
+  @media (max-width:640px){
+    .cmp .row{grid-template-columns:1fr}
+    .cmp .cell{border-left:0;border-top:1px solid var(--line);padding:12px 16px}
+    .cmp .row .cell:first-child{border-top:0}
+    .cmp .asp{padding-bottom:2px}
+    .cmp .head{display:none}
+    .cmp .alea::before{content:"Alea";font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;
+      text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:3px}
+    .cmp .other::before{content:attr(data-other);font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;
+      text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px}
+  }
+
+  /* callouts */
+  .note{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--surface);padding:20px 22px}
+  .note h2{margin-top:0}
+  .note p:last-child{margin-bottom:0}
+
+  /* sources */
+  .src{display:grid;gap:12px}
+  .src a.item{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:12px;
+    padding:15px 18px;background:var(--surface);transition:.18s}
+  .src a.item:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));transform:translateY(-1px)}
+  .src .t{font-weight:700;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px}
+  .src .t .host{font-family:var(--font-mono);font-size:.72rem;color:var(--accent-ink);font-weight:600}
+  .src .d{color:var(--muted);font-size:.95rem;margin-top:3px}
+
+  footer{border-top:1px solid var(--line);padding:26px 0 44px;color:var(--muted);font-size:.86rem}
+  footer .latin{font-style:italic;color:var(--ink)}
+  footer .links{margin-top:10px;display:flex;gap:18px;flex-wrap:wrap}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><span></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span></span>
+      <a href="index.html">Alea</a>
+    </div>
+    <div class="langtoggle" role="group" aria-label="Language">
+      <button id="btn-en" aria-pressed="true" onclick="setLang('en')">EN</button>
+      <button id="btn-el" aria-pressed="false" onclick="setLang('el')">ΕΛ</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="hero">
+      <span class="eyebrow" data-i18n="eyebrow">Offline Bitcoin seed generator</span>
+      <h1 data-i18n="headline">Your Bitcoin seed, from randomness you can see.</h1>
+      <p class="lead" data-i18n="lead">Alea creates the secret backup phrase for a Bitcoin wallet from dice and coins you roll yourself — on a computer that is offline and hasn't even started its operating system, so nothing can watch it or change it.</p>
+      <div class="dicerow" id="dicerow" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section style="border-top:0">
+      <div class="need">
+        <span class="k" data-i18n="need-k">You need</span>
+        <span data-i18n="need-v">A USB stick, an offline PC that can boot from USB, and a handful of dice or a coin.</span>
+      </div>
+    </section>
+
+    <section>
+      <span class="eyebrow" data-i18n="idea-eyebrow">The idea</span>
+      <h2 data-i18n="idea-title">The idea, in one minute</h2>
+      <div class="ideas">
+        <div class="idea"><div class="n">01</div><h3 data-i18n="i1t">You make the randomness</h3><p data-i18n="i1b">Roll dice or flip coins. Alea counts the real randomness you create and won't continue until there is enough — so you never have to trust a hidden random-number generator.</p></div>
+        <div class="idea"><div class="n">02</div><h3 data-i18n="i2t">It runs before your computer does</h3><p data-i18n="i2b">Alea boots from a USB stick before Windows or macOS loads — offline, with no apps and no internet, nothing running that could spy on your keys.</p></div>
+        <div class="idea"><div class="n">03</div><h3 data-i18n="i3t">Your secrets never appear</h3><p data-i18n="i3b">Unlike typical tools that print every private key on screen, Alea shows only the words for you to write down — plus, if you ask, a watch-only view of public data for checking your wallet. Never a private key, never a secret file, never a QR code of anything secret.</p></div>
+        <div class="idea"><div class="n">04</div><h3 data-i18n="i4t">It checks your backup</h3><p data-i18n="i4b">You re-type the words to prove you saved them correctly, before they are ever used to hold funds.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <span class="eyebrow" data-i18n="cmp-eyebrow">Side by side</span>
+      <h2 data-i18n="cmp-title">How Alea is different</h2>
+      <div class="cmp">
+        <div class="row head">
+          <div class="cell asp"></div>
+          <div class="cell alea" data-i18n="cmp-h-alea">Alea</div>
+          <div class="cell other" data-i18n="cmp-h-other">A typical online generator</div>
+        </div>
+        <div class="row">
+          <div class="cell asp" data-i18n="cmp-a1">Randomness</div>
+          <div class="cell alea"><span class="tick">✓</span><span data-i18n="cmp-a1-alea">You roll it — counted honestly</span></div>
+          <div class="cell other" data-other="Typical"><span class="dash">—</span><span data-i18n="cmp-a1-other">The browser's generator — trusted blindly</span></div>
+        </div>
+        <div class="row">
+          <div class="cell asp" data-i18n="cmp-a2">Where it runs</div>
+          <div class="cell alea"><span class="tick">✓</span><span data-i18n="cmp-a2-alea">Offline, before any operating system</span></div>
+          <div class="cell other" data-other="Typical"><span class="dash">—</span><span data-i18n="cmp-a2-other">In a browser, on your live computer</span></div>
+        </div>
+        <div class="row">
+          <div class="cell asp" data-i18n="cmp-a3">What it shows</div>
+          <div class="cell alea"><span class="tick">✓</span><span data-i18n="cmp-a3-alea">Words to write down — never a key</span></div>
+          <div class="cell other" data-other="Typical"><span class="dash">—</span><span data-i18n="cmp-a3-other">Every private key, on screen</span></div>
+        </div>
+        <div class="row">
+          <div class="cell asp" data-i18n="cmp-a4">Backup check</div>
+          <div class="cell alea"><span class="tick">✓</span><span data-i18n="cmp-a4-alea">Re-enter the words to confirm</span></div>
+          <div class="cell other" data-other="Typical"><span class="dash">—</span><span data-i18n="cmp-a4-other">None</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="note">
+        <h2 data-i18n="honest-title">Honest about what it is</h2>
+        <p data-i18n="honest-body">Alea is experimental software. Its randomness-to-seed path has passed an internal source audit, but it has not yet been independently audited, and its releases are verified by checksum, not yet signed. Practice with the risk-free rehearsal edition first — it uses fake, clearly-marked phrases — and don't use Alea to protect substantial funds while it is experimental.</p>
+      </div>
+    </section>
+
+    <section>
+      <span class="eyebrow" data-i18n="name-eyebrow">The name</span>
+      <h2 data-i18n="name-title">Why “Alea”?</h2>
+      <p class="sub" data-i18n="name-body">Alea is Latin for a die — as in alea iacta est, “the die is cast.” Chance, made accountable.</p>
+    </section>
+
+    <section>
+      <span class="eyebrow" data-i18n="src-eyebrow">Learn more</span>
+      <h2 data-i18n="src-title">Trusted sources</h2>
+      <div class="src">
+        <a class="item" href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki" target="_blank" rel="noopener noreferrer">
+          <div class="t">BIP39 <span class="host">bitcoin/bips</span></div>
+          <div class="d" data-i18n="src1">The official standard for the backup words (the mnemonic phrase).</div>
+        </a>
+        <a class="item" href="https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki" target="_blank" rel="noopener noreferrer">
+          <div class="t">BIP32 <span class="host">bitcoin/bips</span></div>
+          <div class="d" data-i18n="src2">The official standard for how one seed produces all of your keys.</div>
+        </a>
+        <a class="item" href="https://bitcoin.org/en/secure-your-wallet" target="_blank" rel="noopener noreferrer">
+          <div class="t">Secure your wallet <span class="host">bitcoin.org</span></div>
+          <div class="d" data-i18n="src3">Plain-language guidance on keeping a wallet safe.</div>
+        </a>
+        <a class="item" href="https://github.com/bitcoinbook/bitcoinbook" target="_blank" rel="noopener noreferrer">
+          <div class="t">Mastering Bitcoin <span class="host">free book</span></div>
+          <div class="d" data-i18n="src4">A deeper, widely-trusted explanation of keys and seeds.</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="endcta">
+      <span class="eyebrow" data-i18n="end-eyebrow">Next</span>
+      <h2 data-i18n="end-title">Ready for the technical details?</h2>
+      <p class="sub" data-i18n="end-body">This was the plain-language intro. The technical site covers the ceremony, the entropy policy, verification and the security posture.</p>
+      <a class="cta-btn" href="index.html" data-i18n="end-cta">Go to the technical site →</a>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span class="latin">alea iacta est</span> · <span data-i18n="foot">Experimental software. Not independently audited. Educational overview, not financial advice.</span>
+      <div class="links">
+        <a href="index.html" data-i18n="foot-tech">Technical site</a>
+        <a href="https://github.com/Xerhs/Alea" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </div>
+  </footer>
+</main>
+
+<script>
+  // dice hero
+  const PIPS={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+  function makeDie(v,delay){
+    const d=document.createElement('div');d.className='die';d.style.animationDelay=delay+'s';
+    for(let i=0;i<9;i++){const c=document.createElement('span');c.className='pip-cell'+(PIPS[v].includes(i)?' on':'');d.appendChild(c);}
+    return d;
+  }
+  (function(){
+    const row=document.getElementById('dicerow');
+    [3,6,2,5].forEach((v,i)=>row.appendChild(makeDie(v,i*0.09)));
+    const coin=document.createElement('div');coin.className='coin';coin.style.animationDelay='0.36s';coin.textContent='₿';
+    row.appendChild(coin);
+  })();
+
+  // i18n
+  const I18N={
+    en:{
+      eyebrow:"Offline Bitcoin seed generator",
+      headline:"Your Bitcoin seed, from randomness you can see.",
+      lead:"Alea creates the secret backup phrase for a Bitcoin wallet from dice and coins you roll yourself — on a computer that is offline and hasn't even started its operating system, so nothing can watch it or change it.",
+      "need-k":"You need","need-v":"A USB stick, an offline PC that can boot from USB, and a handful of dice or a coin.",
+      "idea-eyebrow":"The idea","idea-title":"The idea, in one minute",
+      i1t:"You make the randomness",i1b:"Roll dice or flip coins. Alea counts the real randomness you create and won't continue until there is enough — so you never have to trust a hidden random-number generator.",
+      i2t:"It runs before your computer does",i2b:"Alea boots from a USB stick before Windows or macOS loads — offline, with no apps and no internet, nothing running that could spy on your keys.",
+      i3t:"Your secrets never appear",i3b:"Unlike typical tools that print every private key on screen, Alea shows only the words for you to write down — plus, if you ask, a watch-only view of public data for checking your wallet. Never a private key, never a secret file, never a QR code of anything secret.",
+      i4t:"It checks your backup",i4b:"You re-type the words to prove you saved them correctly, before they are ever used to hold funds.",
+      "cmp-eyebrow":"Side by side","cmp-title":"How Alea is different",
+      "cmp-h-alea":"Alea","cmp-h-other":"A typical online generator",
+      "cmp-a1":"Randomness","cmp-a1-alea":"You roll it — counted honestly","cmp-a1-other":"The browser's generator — trusted blindly",
+      "cmp-a2":"Where it runs","cmp-a2-alea":"Offline, before any operating system","cmp-a2-other":"In a browser, on your live computer",
+      "cmp-a3":"What it shows","cmp-a3-alea":"Words to write down — never a key","cmp-a3-other":"Every private key, on screen",
+      "cmp-a4":"Backup check","cmp-a4-alea":"Re-enter the words to confirm","cmp-a4-other":"None",
+      "honest-title":"Honest about what it is","honest-body":"Alea is experimental software. Its randomness-to-seed path has passed an internal source audit, but it has not yet been independently audited, and its releases are verified by checksum, not yet signed. Practice with the risk-free rehearsal edition first — it uses fake, clearly-marked phrases — and don't use Alea to protect substantial funds while it is experimental.",
+      "name-eyebrow":"The name","name-title":"Why “Alea”?","name-body":"Alea is Latin for a die — as in alea iacta est, “the die is cast.” Chance, made accountable.",
+      "src-eyebrow":"Learn more","src-title":"Trusted sources",
+      src1:"The official standard for the backup words (the mnemonic phrase).",
+      src2:"The official standard for how one seed produces all of your keys.",
+      src3:"Plain-language guidance on keeping a wallet safe.",
+      src4:"A deeper, widely-trusted explanation of keys and seeds.",
+      foot:"Experimental software. Not independently audited. Educational overview, not financial advice.",
+      "foot-tech":"Technical site",
+      "end-eyebrow":"Next",
+      "end-title":"Ready for the technical details?",
+      "end-body":"This was the plain-language intro. The technical site covers the ceremony, the entropy policy, verification and the security posture.",
+      "end-cta":"Go to the technical site →"
+    },
+    el:{
+      eyebrow:"Γεννήτρια μυστικής φράσης Bitcoin — χωρίς σύνδεση",
+      headline:"Η μυστική σου φράση Bitcoin, από τυχαιότητα που βλέπεις.",
+      lead:"Το Alea δημιουργεί τη μυστική φράση ενός πορτοφολιού Bitcoin από ζάρια και κέρματα που ρίχνεις ο ίδιος — σε υπολογιστή χωρίς σύνδεση, που δεν έχει καν ξεκινήσει το λειτουργικό του σύστημα, ώστε τίποτα να μην μπορεί να το παρακολουθήσει ή να το αλλοιώσει.",
+      "need-k":"Χρειάζεσαι","need-v":"Ένα USB stick, έναν υπολογιστή χωρίς σύνδεση που εκκινεί από USB, και μερικά ζάρια ή ένα κέρμα.",
+      "idea-eyebrow":"Η ιδέα","idea-title":"Η ιδέα, σε ένα λεπτό",
+      i1t:"Εσύ φτιάχνεις την τυχαιότητα",i1b:"Ρίχνεις ζάρια ή στρίβεις κέρματα. Το Alea μετράει την πραγματική τυχαιότητα που δημιουργείς και δεν προχωράει αν δεν είναι αρκετή — έτσι δεν χρειάζεται ποτέ να εμπιστευτείς μια κρυφή γεννήτρια τυχαίων αριθμών.",
+      i2t:"Τρέχει πριν καν ξεκινήσει ο υπολογιστής σου",i2b:"Το Alea εκκινεί από USB stick πριν φορτώσουν τα Windows ή το macOS — χωρίς σύνδεση, χωρίς εφαρμογές και χωρίς ίντερνετ· τίποτα δεν τρέχει που θα μπορούσε να υποκλέψει τα κλειδιά σου.",
+      i3t:"Τα μυστικά σου δεν εμφανίζονται ποτέ",i3b:"Σε αντίθεση με τα συνηθισμένα εργαλεία που εμφανίζουν κάθε ιδιωτικό κλειδί στην οθόνη, το Alea δείχνει μόνο τις λέξεις για να τις σημειώσεις — και, αν το ζητήσεις, μια προβολή μόνο δημόσιων στοιχείων για να ελέγξεις το πορτοφόλι σου. Ποτέ ιδιωτικό κλειδί, ποτέ μυστικό αρχείο, ποτέ κωδικός QR για οτιδήποτε μυστικό.",
+      i4t:"Ελέγχει το αντίγραφο ασφαλείας σου",i4b:"Ξαναπληκτρολογείς τις λέξεις για να αποδείξεις ότι τις έγραψες σωστά, προτού χρησιμοποιηθούν ποτέ για πραγματικά χρήματα.",
+      "cmp-eyebrow":"Δίπλα-δίπλα","cmp-title":"Πού διαφέρει το Alea",
+      "cmp-h-alea":"Alea","cmp-h-other":"Μια τυπική διαδικτυακή γεννήτρια",
+      "cmp-a1":"Τυχαιότητα","cmp-a1-alea":"Τη ρίχνεις εσύ — μετρημένη με ειλικρίνεια","cmp-a1-other":"Η γεννήτρια του browser — τυφλή εμπιστοσύνη",
+      "cmp-a2":"Πού τρέχει","cmp-a2-alea":"Χωρίς σύνδεση, πριν από κάθε λειτουργικό","cmp-a2-other":"Σε browser, στον ενεργό υπολογιστή σου",
+      "cmp-a3":"Τι δείχνει","cmp-a3-alea":"Τις λέξεις για να σημειώσεις — ποτέ κλειδί","cmp-a3-other":"Κάθε ιδιωτικό κλειδί, στην οθόνη",
+      "cmp-a4":"Έλεγχος αντιγράφου","cmp-a4-alea":"Ξαναγράφεις τις λέξεις για επιβεβαίωση","cmp-a4-other":"Κανένας",
+      "honest-title":"Ειλικρινές για το τι είναι","honest-body":"Το Alea είναι πειραματικό λογισμικό. Η διαδρομή από την τυχαιότητα ως τη φράση έχει περάσει εσωτερικό έλεγχο πηγαίου κώδικα, αλλά δεν έχει ακόμη ελεγχθεί ανεξάρτητα, και οι εκδόσεις του επαληθεύονται με άθροισμα ελέγχου — δεν είναι ακόμη υπογεγραμμένες. Δοκίμασε πρώτα την έκδοση εξάσκησης, χωρίς κανένα ρίσκο — χρησιμοποιεί ψεύτικες, ξεκάθαρα επισημασμένες φράσεις — και μην εμπιστεύεσαι στο Alea μεγάλα ποσά όσο είναι πειραματικό.",
+      "name-eyebrow":"Το όνομα","name-title":"Γιατί «Alea»;","name-body":"Alea στα λατινικά σημαίνει ζάρι — όπως στο alea iacta est, «ο κύβος ερρίφθη». Η τυχαιότητα, με λογοδοσία.",
+      "src-eyebrow":"Μάθε περισσότερα","src-title":"Αξιόπιστες πηγές",
+      src1:"Το επίσημο πρότυπο για τις λέξεις της μυστικής φράσης (mnemonic).",
+      src2:"Το επίσημο πρότυπο για το πώς μία μυστική φράση παράγει όλα σου τα κλειδιά.",
+      src3:"Οδηγίες σε απλή γλώσσα για την ασφάλεια ενός πορτοφολιού.",
+      src4:"Μια βαθύτερη, ευρέως αξιόπιστη εξήγηση για κλειδιά και μυστικές φράσεις.",
+      foot:"Πειραματικό λογισμικό. Χωρίς ανεξάρτητο έλεγχο. Εκπαιδευτική επισκόπηση, όχι οικονομική συμβουλή.",
+      "foot-tech":"Τεχνική σελίδα",
+      "end-eyebrow":"Επόμενο",
+      "end-title":"Έτοιμος για τις τεχνικές λεπτομέρειες;",
+      "end-body":"Αυτή ήταν η εισαγωγή σε απλή γλώσσα. Η τεχνική σελίδα καλύπτει την τελετή, την πολιτική εντροπίας, την επαλήθευση και τη στάση ασφαλείας.",
+      "end-cta":"Πήγαινε στην τεχνική σελίδα →"
+    }
+  };
+  function setLang(l){
+    document.documentElement.lang=l;
+    const dict=I18N[l];
+    document.querySelectorAll('[data-i18n]').forEach(el=>{
+      const k=el.getAttribute('data-i18n');
+      if(dict[k]!=null) el.textContent=dict[k];
+    });
+    document.getElementById('btn-en').setAttribute('aria-pressed', l==='en');
+    document.getElementById('btn-el').setAttribute('aria-pressed', l==='el');
+    try{localStorage.setItem('alea-lang',l);}catch(e){}
+  }
+  (function(){
+    let l=null;
+    try{const s=localStorage.getItem('alea-lang'); if(s==='el'||s==='en') l=s;}catch(e){}
+    if(!l){const n=(navigator.language||navigator.userLanguage||'').toLowerCase(); l=n.indexOf('el')===0?'el':'en';}
+    setLang(l);
+  })();
+</script>
+
+</body>
+</html>
