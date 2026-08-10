@@ -1,6 +1,6 @@
 [package]
 name = "seed-uefi-production"
-version = "0.10.0-beta"
+version = "0.12.0-beta"
 edition.workspace = true
 license.workspace = true
 publish = false
