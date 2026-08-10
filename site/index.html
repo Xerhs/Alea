@@ -25,6 +25,10 @@
   code,kbd,.mono{font-family:var(--mono)}
   h1,h2,h3{line-height:1.15;text-wrap:balance;font-weight:650}
 
+  /* bilingual toggle: hide the inactive language */
+  html[lang="en"] .lang-el{display:none !important}
+  html[lang="el"] .lang-en{display:none !important}
+
   /* experimental banner */
   .exp{background:#1a1206;border-bottom:1px solid #6b4f1d;color:var(--warn);
        font:600 13px/1.5 var(--mono);letter-spacing:.02em}
@@ -39,6 +43,11 @@
   nav ul{display:flex;gap:22px;list-style:none;margin:0;padding:0;
          font:13px/1 var(--mono);letter-spacing:.06em}
   nav ul a{color:var(--cap)} nav ul a:hover{color:var(--accent);text-decoration:none}
+  .langsw{display:flex;gap:5px;font:600 12px/1 var(--mono);flex:0 0 auto}
+  .langsw button{background:transparent;border:1px solid var(--rule);color:var(--cap);
+    padding:6px 10px;border-radius:6px;cursor:pointer;letter-spacing:.06em}
+  .langsw button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+  .langsw button:hover{color:var(--accent)}
   @media (max-width:620px){nav ul{display:none}}
 
   /* hero */
@@ -120,8 +129,10 @@
 
 <div class="exp" role="alert">
   <div class="wrap">
-    <b>EXPERIMENTAL SECURITY SOFTWARE</b>
-    <span>Alea has not passed its stable-release security gates. Do not use it to protect substantial funds. Practice with small amounts first.</span>
+    <b class="lang-en">EXPERIMENTAL SECURITY SOFTWARE</b>
+    <b class="lang-el">ΠΕΙΡΑΜΑΤΙΚΟ ΛΟΓΙΣΜΙΚΟ ΑΣΦΑΛΕΙΑΣ</b>
+    <span class="lang-en">Alea has not passed its stable-release security gates. Do not use it to protect substantial funds. Practice with small amounts first.</span>
+    <span class="lang-el">Το Alea δεν έχει περάσει τις πύλες ασφαλείας σταθερής έκδοσης. Μην το χρησιμοποιείς για την προστασία σημαντικών κεφαλαίων. Δοκίμασε πρώτα με μικρά ποσά.</span>
   </div>
 </div>
 
@@ -129,28 +140,34 @@
   <div class="wrap">
     <span class="brand">ALEA<span class="dot">·</span></span>
     <ul>
-      <li><a href="explained.html">Intro (EN/ΕΛ)</a></li>
-      <li><a href="#what">What it is</a></li>
-      <li><a href="#ceremony">The ceremony</a></li>
-      <li><a href="#entropy">Entropy</a></li>
-      <li><a href="#get">Get it</a></li>
-      <li><a href="#security">Security</a></li>
+      <li><a href="#what"><span class="lang-en">What it is</span><span class="lang-el">Τι είναι</span></a></li>
+      <li><a href="#ceremony"><span class="lang-en">The ceremony</span><span class="lang-el">Η τελετή</span></a></li>
+      <li><a href="#entropy"><span class="lang-en">Entropy</span><span class="lang-el">Εντροπία</span></a></li>
+      <li><a href="#get"><span class="lang-en">Get it</span><span class="lang-el">Απόκτησέ το</span></a></li>
+      <li><a href="#security"><span class="lang-en">Security</span><span class="lang-el">Ασφάλεια</span></a></li>
       <li><a href="https://github.com/Xerhs/Alea">GitHub ↗</a></li>
     </ul>
+    <div class="langsw" role="group" aria-label="Language / Γλώσσα">
+      <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang-btn="el" aria-pressed="false">ΕΛ</button>
+    </div>
   </div>
 </nav>
 
 <header class="hero">
   <div class="wrap">
-    <p class="eyebrow">Air-gapped · Pre-OS · Open source</p>
-    <h1>Generate your Bitcoin recovery words before any operating system loads.</h1>
-    <p class="lede">Alea is a small UEFI application that boots from a USB stick and creates a standard BIP39 seed from entropy <em>you</em> chose — physical dice, coin flips, an approved hardware random source, or a mix — with the ordinary desktop OS removed from the process entirely.</p>
-    <p class="sub">It is not "memtest for seeds." Alea is specified to <b style="color:var(--text)">refuse</b> virtualized platforms, remote-console paths, managed endpoints and hardware it cannot reason about — and to tell you why. Refusal is a feature.</p>
+    <p class="eyebrow lang-en">Air-gapped · Pre-OS · Open source</p>
+    <p class="eyebrow lang-el">Απομονωμένο · Πριν το λειτουργικό · Ανοιχτού κώδικα</p>
+    <h1 class="lang-en">Generate your Bitcoin recovery words before any operating system loads.</h1>
+    <h1 class="lang-el">Δημιούργησε τις λέξεις ανάκτησης Bitcoin πριν φορτώσει οποιοδήποτε λειτουργικό σύστημα.</h1>
+    <p class="lede lang-en">Alea is a small UEFI application that boots from a USB stick and creates a standard BIP39 seed from entropy <em>you</em> chose — physical dice, coin flips, an approved hardware random source, or a mix — with the ordinary desktop OS removed from the process entirely.</p>
+    <p class="lede lang-el">Το Alea είναι μια μικρή εφαρμογή UEFI που εκκινεί από ένα στικάκι USB και δημιουργεί μια τυπική φράση BIP39 από εντροπία που επέλεξες <em>εσύ</em> — φυσικά ζάρια, ρίψεις νομίσματος, μια εγκεκριμένη πηγή τυχαιότητας υλικού, ή έναν συνδυασμό — αφαιρώντας εντελώς το συνηθισμένο λειτουργικό σύστημα από τη διαδικασία.</p>
+    <p class="sub lang-en">It is not "memtest for seeds." Alea is specified to <b style="color:var(--text)">refuse</b> virtualized platforms, remote-console paths, managed endpoints and hardware it cannot reason about — and to tell you why. Refusal is a feature.</p>
+    <p class="sub lang-el">Δεν είναι «memtest για φράσεις». Το Alea είναι σχεδιασμένο να <b style="color:var(--text)">απορρίπτει</b> εικονικές πλατφόρμες, διαδρομές απομακρυσμένης κονσόλας, διαχειριζόμενες συσκευές και υλικό που δεν μπορεί να αξιολογήσει — και να σου εξηγεί γιατί. Η άρνηση είναι χαρακτηριστικό, όχι σφάλμα.</p>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/Xerhs/Alea/releases">Download a release</a>
-      <a class="btn ghost" href="https://github.com/Xerhs/Alea">Read the source</a>
-      <a class="btn ghost" href="#security">Security &amp; audit</a>
-      <a class="btn ghost" href="explained.html">New here? Plain-language intro · ΕΛ</a>
+      <a class="btn primary" href="https://github.com/Xerhs/Alea/releases"><span class="lang-en">Download a release</span><span class="lang-el">Κατέβασε μια έκδοση</span></a>
+      <a class="btn ghost" href="https://github.com/Xerhs/Alea"><span class="lang-en">Read the source</span><span class="lang-el">Δες τον πηγαίο κώδικα</span></a>
+      <a class="btn ghost" href="#security"><span class="lang-en">Security &amp; audit</span><span class="lang-el">Ασφάλεια &amp; έλεγχος</span></a>
     </div>
 
     <div class="term" aria-hidden="true">
@@ -172,76 +189,102 @@
 
 <section id="what">
   <div class="wrap">
-    <p class="kicker">What Alea is — and is not</p>
-    <h2>A boot tool that completes the seed ceremony on a vetted subset of machines, and loudly refuses the rest.</h2>
-    <p>Alea reduces what you have to trust for seed <em>generation</em> by removing the general-purpose operating system from it. It does <b>not</b> remove the motherboard firmware, the CPU, memory, the display hardware, your physical environment, the compiler, or the release process from what you are trusting — and it says so, plainly, on screen and in every document.</p>
+    <p class="kicker lang-en">What Alea is — and is not</p>
+    <p class="kicker lang-el">Τι είναι — και τι δεν είναι το Alea</p>
+    <h2 class="lang-en">A boot tool that completes the seed ceremony on a vetted subset of machines, and loudly refuses the rest.</h2>
+    <h2 class="lang-el">Ένα εργαλείο εκκίνησης που ολοκληρώνει την τελετή δημιουργίας φράσης σε ένα ελεγμένο υποσύνολο μηχανημάτων, και απορρίπτει ηχηρά τα υπόλοιπα.</h2>
+    <p class="lang-en">Alea reduces what you have to trust for seed <em>generation</em> by removing the general-purpose operating system from it. It does <b>not</b> remove the motherboard firmware, the CPU, memory, the display hardware, your physical environment, the compiler, or the release process from what you are trusting — and it says so, plainly, on screen and in every document.</p>
+    <p class="lang-el">Το Alea μειώνει αυτά που πρέπει να εμπιστευτείς για τη <em>δημιουργία</em> της φράσης, αφαιρώντας το γενικής χρήσης λειτουργικό σύστημα. <b>Δεν</b> αφαιρεί το firmware της μητρικής, την CPU, τη μνήμη, το υλικό της οθόνης, το φυσικό σου περιβάλλον, τον μεταγλωττιστή ή τη διαδικασία έκδοσης από αυτά που εμπιστεύεσαι — και το δηλώνει ξεκάθαρα, στην οθόνη και σε κάθε έγγραφο.</p>
     <ul class="checks">
-      <li><b>Standard BIP39.</b> 12 or 24 words that restore into Trezor, Ledger, Coldcard, Sparrow, Electrum, BlueWallet — any BIP39 wallet. There is no "Alea seed"; you generated a seed.</li>
-      <li><b>Your entropy, your choice.</b> Dice, coins, an approved machine source, or a combination — with the physical transcript recorded so you can independently reproduce the result.</li>
-      <li><b>Confirm before you fund.</b> After full re-entry it shows the master fingerprint and first receive addresses so you can check your signing device restored the exact same wallet before depositing.</li>
-      <li><b>Reproducible &amp; verifiable.</b> An independently-written Python reference implementation and a frozen test-vector corpus let anyone check the math bit-for-bit.</li>
+      <li class="lang-en"><b>Standard BIP39.</b> 12 or 24 words that restore into Trezor, Ledger, Coldcard, Sparrow, Electrum, BlueWallet — any BIP39 wallet. There is no "Alea seed"; you generated a seed.</li>
+      <li class="lang-el"><b>Τυπικό BIP39.</b> 12 ή 24 λέξεις που επαναφέρονται σε Trezor, Ledger, Coldcard, Sparrow, Electrum, BlueWallet — οποιοδήποτε πορτοφόλι BIP39. Δεν υπάρχει «φράση Alea»· δημιούργησες μια τυπική φράση.</li>
+      <li class="lang-en"><b>Your entropy, your choice.</b> Dice, coins, an approved machine source, or a combination — with the physical transcript recorded so you can independently reproduce the result.</li>
+      <li class="lang-el"><b>Η δική σου εντροπία, η δική σου επιλογή.</b> Ζάρια, νομίσματα, μια εγκεκριμένη πηγή μηχανήματος ή συνδυασμός — με το φυσικό ιστορικό καταγεγραμμένο ώστε να αναπαράγεις ανεξάρτητα το αποτέλεσμα.</li>
+      <li class="lang-en"><b>Confirm before you fund.</b> After full re-entry it shows the master fingerprint and first receive addresses so you can check your signing device restored the exact same wallet before depositing.</li>
+      <li class="lang-el"><b>Επιβεβαίωσε πριν καταθέσεις.</b> Μετά την πλήρη επανεισαγωγή εμφανίζει το αποτύπωμα (fingerprint) και τις πρώτες διευθύνσεις λήψης, ώστε να ελέγξεις ότι η συσκευή υπογραφής σου επανέφερε ακριβώς το ίδιο πορτοφόλι πριν καταθέσεις.</li>
+      <li class="lang-en"><b>Reproducible &amp; verifiable.</b> An independently-written Python reference implementation and a frozen test-vector corpus let anyone check the math bit-for-bit.</li>
+      <li class="lang-el"><b>Αναπαραγώγιμο &amp; επαληθεύσιμο.</b> Μια ανεξάρτητα γραμμένη υλοποίηση αναφοράς σε Python και ένα παγωμένο σύνολο διανυσμάτων ελέγχου επιτρέπουν στον καθένα να ελέγξει τους υπολογισμούς bit προς bit.</li>
     </ul>
     <ul class="checks refuse">
-      <li>Not a hardware wallet, not a secure element, and not proof your computer is trustworthy.</li>
-      <li>Not universal — it refuses hypervisors, remote consoles and hardware it cannot classify, on purpose.</li>
-      <li>Never shows or exports a private key, <code>xprv</code>, or the raw seed.</li>
+      <li class="lang-en">Not a hardware wallet, not a secure element, and not proof your computer is trustworthy.</li>
+      <li class="lang-el">Δεν είναι hardware wallet, δεν είναι secure element, και δεν αποδεικνύει ότι ο υπολογιστής σου είναι αξιόπιστος.</li>
+      <li class="lang-en">Not universal — it refuses hypervisors, remote consoles and hardware it cannot classify, on purpose.</li>
+      <li class="lang-el">Δεν είναι καθολικό — απορρίπτει hypervisors, απομακρυσμένες κονσόλες και υλικό που δεν μπορεί να ταξινομήσει, σκόπιμα.</li>
+      <li class="lang-en">Never shows or exports a private key, <code>xprv</code>, or the raw seed.</li>
+      <li class="lang-el">Ποτέ δεν εμφανίζει ή εξάγει ιδιωτικό κλειδί, <code>xprv</code>, ή το ακατέργαστο seed.</li>
     </ul>
   </div>
 </section>
 
 <section id="ceremony">
   <div class="wrap">
-    <p class="kicker">The ceremony</p>
-    <h2>Deliberate, slow, and reboot-based — because that is the cost of the trust reduction.</h2>
+    <p class="kicker lang-en">The ceremony</p>
+    <p class="kicker lang-el">Η τελετή</p>
+    <h2 class="lang-en">Deliberate, slow, and reboot-based — because that is the cost of the trust reduction.</h2>
+    <h2 class="lang-el">Σκόπιμα αργή και βασισμένη σε επανεκκινήσεις — γιατί αυτό είναι το κόστος της μείωσης της εμπιστοσύνης.</h2>
     <div class="steps">
-      <div class="step"><span class="n"></span><div><h3>Prepare &amp; check the machine</h3><p>Acknowledge what you are and aren't trusting, confirm this is the machine's own physical display, and pass the device self-tests.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Choose your entropy</h3><p>12 or 24 words; dice-only, machine-only, or combined. Mandated warnings for each mode are shown inline before you commit.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Collect &amp; generate</h3><p>Roll/flip or draw machine randomness; a single arm key generates — <code>Enter</code> is deliberately ignored so it cannot be triggered by reflex.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Write down &amp; re-enter</h3><p>The words are shown once; you type every one back with no echo. Only a full match continues — this catches copy errors before any funds exist.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Optional passphrase, then verify</h3><p>Add an optional BIP39 passphrase, then confirm the fingerprint and addresses against your own wallet — and, if you want, open the optional watch-only / multisig export.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Scrub &amp; power off</h3><p>Secret material is overwritten and the machine powers down — no files, no logs, no network, nothing persisted by the application.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Prepare &amp; check the machine</h3><h3 class="lang-el">Προετοίμασε &amp; έλεγξε το μηχάνημα</h3><p class="lang-en">Acknowledge what you are and aren't trusting, confirm this is the machine's own physical display, and pass the device self-tests.</p><p class="lang-el">Αναγνώρισε τι εμπιστεύεσαι και τι όχι, επιβεβαίωσε ότι αυτή είναι η φυσική οθόνη του ίδιου του μηχανήματος, και πέρασε τους αυτοελέγχους της συσκευής.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Choose your entropy</h3><h3 class="lang-el">Επίλεξε την εντροπία σου</h3><p class="lang-en">12 or 24 words; dice-only, machine-only, or combined. Mandated warnings for each mode are shown inline before you commit.</p><p class="lang-el">12 ή 24 λέξεις· μόνο ζάρια, μόνο μηχάνημα, ή συνδυασμός. Οι υποχρεωτικές προειδοποιήσεις για κάθε λειτουργία εμφανίζονται πριν δεσμευτείς.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Collect &amp; generate</h3><h3 class="lang-el">Συγκέντρωσε &amp; δημιούργησε</h3><p class="lang-en">Roll/flip or draw machine randomness; a single arm key generates — <code>Enter</code> is deliberately ignored so it cannot be triggered by reflex.</p><p class="lang-el">Ρίξε ζάρια/νομίσματα ή άντλησε τυχαιότητα μηχανήματος· ένα μόνο πλήκτρο ενεργοποίησης δημιουργεί — το <code>Enter</code> αγνοείται σκόπιμα ώστε να μην ενεργοποιηθεί αντανακλαστικά.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Write down &amp; re-enter</h3><h3 class="lang-el">Κατέγραψε &amp; επανεισήγαγε</h3><p class="lang-en">The words are shown once; you type every one back with no echo. Only a full match continues — this catches copy errors before any funds exist.</p><p class="lang-el">Οι λέξεις εμφανίζονται μία φορά· τις πληκτρολογείς όλες ξανά χωρίς να εμφανίζονται. Μόνο η πλήρης αντιστοίχιση συνεχίζει — έτσι εντοπίζονται λάθη αντιγραφής πριν υπάρξουν κεφάλαια.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Optional passphrase, then verify</h3><h3 class="lang-el">Προαιρετική passphrase, μετά επαλήθευση</h3><p class="lang-en">Add an optional BIP39 passphrase, then confirm the fingerprint and addresses against your own wallet — and, if you want, open the optional watch-only / multisig export.</p><p class="lang-el">Πρόσθεσε μια προαιρετική passphrase BIP39, μετά επιβεβαίωσε το αποτύπωμα και τις διευθύνσεις με το δικό σου πορτοφόλι — και, αν θέλεις, άνοιξε την προαιρετική εξαγωγή watch-only / multisig.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Scrub &amp; power off</h3><h3 class="lang-el">Καθαρισμός &amp; απενεργοποίηση</h3><p class="lang-en">Secret material is overwritten and the machine powers down — no files, no logs, no network, nothing persisted by the application.</p><p class="lang-el">Το μυστικό υλικό διαγράφεται (overwrite) και το μηχάνημα σβήνει — κανένα αρχείο, κανένα log, κανένα δίκτυο, τίποτα δεν αποθηκεύεται από την εφαρμογή.</p></div></div>
     </div>
   </div>
 </section>
 
 <section id="entropy">
   <div class="wrap">
-    <p class="kicker">Entropy you can reason about</p>
-    <h2>The seed provably follows only the entropy you saw or created.</h2>
-    <p>An internal source audit traced the whole path — collection → conditioning → BIP39 → seed. The seed is a deterministic function of only your collected entropy plus fixed, declared constants: no hidden RNG, no timestamps, no environment values, and an empty transcript is refused at the cryptographic boundary. Machine randomness is <b>fail-closed</b>: RDSEED's success flag is honored on every draw and never substituted with zero, and the code refuses rather than proceed on an absent, timed-out, or stuck source — there is no weak software-RNG fallback anywhere.</p>
+    <p class="kicker lang-en">Entropy you can reason about</p>
+    <p class="kicker lang-el">Εντροπία που μπορείς να κατανοήσεις</p>
+    <h2 class="lang-en">The seed provably follows only the entropy you saw or created.</h2>
+    <h2 class="lang-el">Η φράση προκύπτει αποδεδειγμένα μόνο από την εντροπία που είδες ή δημιούργησες.</h2>
+    <p class="lang-en">An internal source audit traced the whole path — collection → conditioning → BIP39 → seed. The seed is a deterministic function of only your collected entropy plus fixed, declared constants: no hidden RNG, no timestamps, no environment values, and an empty transcript is refused at the cryptographic boundary. Machine randomness is <b>fail-closed</b>: RDSEED's success flag is honored on every draw and never substituted with zero, and the code refuses rather than proceed on an absent, timed-out, or stuck source — there is no weak software-RNG fallback anywhere.</p>
+    <p class="lang-el">Ένας εσωτερικός έλεγχος πηγής ιχνηλάτησε όλη τη διαδρομή — συλλογή → επεξεργασία → BIP39 → seed. Η φράση είναι ντετερμινιστική συνάρτηση μόνο της εντροπίας που συνέλεξες συν σταθερές, δηλωμένες τιμές: κανένας κρυφός RNG, καμία χρονοσφραγίδα, καμία τιμή περιβάλλοντος, και ένα κενό ιστορικό απορρίπτεται στο κρυπτογραφικό όριο. Η τυχαιότητα μηχανήματος είναι <b>fail-closed</b>: η σημαία επιτυχίας του RDSEED τηρείται σε κάθε άντληση και ποτέ δεν αντικαθίσταται με μηδενικά, και ο κώδικας αρνείται αντί να συνεχίσει σε απούσα, ληγμένη ή κολλημένη πηγή — δεν υπάρχει πουθενά αδύναμο εφεδρικό λογισμικό RNG.</p>
     <div class="grid">
-      <div class="card"><span class="tag">Dice &amp; coins</span><h3>Entropy you can witness</h3><p>Fair dice and coin flips, budgeted to a target strength, with an order-preserving transcript you can replay against the reference implementation.</p></div>
-      <div class="card"><span class="tag">Machine</span><h3>Approved sources only</h3><p>A compiled-in, versioned policy governs which hardware sources are allowed. True-random RDSEED is preferred; RDRAND can never stand alone.</p></div>
-      <div class="card"><span class="tag">Combined</span><h3>Don't trust the silicon</h3><p>Mix machine randomness with your own dice/coins. Your physical entropy is the backstop that does not depend on trusting the CPU's RNG.</p></div>
+      <div class="card"><span class="tag">Dice &amp; coins</span><h3 class="lang-en">Entropy you can witness</h3><h3 class="lang-el">Εντροπία που μπορείς να δεις</h3><p class="lang-en">Fair dice and coin flips, budgeted to a target strength, with an order-preserving transcript you can replay against the reference implementation.</p><p class="lang-el">Δίκαια ζάρια και ρίψεις νομίσματος, υπολογισμένα σε στόχο ισχύος, με ιστορικό που διατηρεί τη σειρά και μπορείς να το αναπαράγεις με την υλοποίηση αναφοράς.</p></div>
+      <div class="card"><span class="tag">Machine</span><h3 class="lang-en">Approved sources only</h3><h3 class="lang-el">Μόνο εγκεκριμένες πηγές</h3><p class="lang-en">A compiled-in, versioned policy governs which hardware sources are allowed. True-random RDSEED is preferred; RDRAND can never stand alone.</p><p class="lang-el">Μια ενσωματωμένη, εκδοσιοποιημένη πολιτική καθορίζει ποιες πηγές υλικού επιτρέπονται. Το πραγματικά τυχαίο RDSEED προτιμάται· το RDRAND δεν μπορεί ποτέ να σταθεί μόνο του.</p></div>
+      <div class="card"><span class="tag">Combined</span><h3 class="lang-en">Don't trust the silicon</h3><h3 class="lang-el">Μην εμπιστεύεσαι το πυρίτιο</h3><p class="lang-en">Mix machine randomness with your own dice/coins. Your physical entropy is the backstop that does not depend on trusting the CPU's RNG.</p><p class="lang-el">Ανάμειξε την τυχαιότητα του μηχανήματος με τα δικά σου ζάρια/νομίσματα. Η φυσική σου εντροπία είναι το δίχτυ ασφαλείας που δεν εξαρτάται από την εμπιστοσύνη στον RNG της CPU.</p></div>
     </div>
-    <div class="note"><b>The one thing it can't check:</b> a CPU RNG that is subtly biased yet still passes the catastrophic checks. No software on that same CPU can detect it — which is exactly what Alea warns you before generation, and why dice/coin entropy exists. Read the <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">entropy audit</a>.</div>
+    <div class="note lang-en"><b>The one thing it can't check:</b> a CPU RNG that is subtly biased yet still passes the catastrophic checks. No software on that same CPU can detect it — which is exactly what Alea warns you before generation, and why dice/coin entropy exists. Read the <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">entropy audit</a>.</div>
+    <div class="note lang-el"><b>Το ένα πράγμα που δεν μπορεί να ελέγξει:</b> έναν RNG της CPU που είναι διακριτικά προκατειλημμένος αλλά περνά τους ελέγχους καταστροφικής αστοχίας. Κανένα λογισμικό στην ίδια CPU δεν μπορεί να το εντοπίσει — γι' αυτό ακριβώς το Alea σε προειδοποιεί πριν τη δημιουργία, και γι' αυτό υπάρχει η εντροπία από ζάρια/νομίσματα. Διάβασε τον <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">έλεγχο εντροπίας</a>.</div>
   </div>
 </section>
 
 <section id="get">
   <div class="wrap">
-    <p class="kicker">Getting it onto hardware</p>
-    <h2>Download, verify, flash, boot — verify before you trust.</h2>
+    <p class="kicker lang-en">Getting it onto hardware</p>
+    <p class="kicker lang-el">Πώς να το βάλεις σε υλικό</p>
+    <h2 class="lang-en">Download, verify, flash, boot — verify before you trust.</h2>
+    <h2 class="lang-el">Κατέβασε, επαλήθευσε, γράψε στο USB, εκκίνησε — επαλήθευσε πριν εμπιστευτείς.</h2>
     <div class="steps">
-      <div class="step"><span class="n"></span><div><h3>Download a release</h3><p>Grab <code>alea-x86_64-usb.img</code> and <code>SHA256SUMS</code> from the <a href="https://github.com/Xerhs/Alea/releases">releases page</a>. Builds are reproducible from source.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Verify the checksum</h3><p>Confirm the image matches <code>SHA256SUMS</code> before writing it. The release is unsigned by design at this stage — the checksum is how you verify it.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Flash the whole USB</h3><p>Write the raw image to a USB device with Rufus (DD mode), balenaEtcher, or <code>dd</code>. It is a full GPT disk image.</p></div></div>
-      <div class="step"><span class="n"></span><div><h3>Boot on real hardware</h3><p>Disable Secure Boot (the payload is unsigned), boot the USB in UEFI mode. Alea refuses virtualization, so the full ceremony only runs on a real machine.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Download a release</h3><h3 class="lang-el">Κατέβασε μια έκδοση</h3><p class="lang-en">Grab <code>alea-x86_64-usb.img</code> and <code>SHA256SUMS</code> from the <a href="https://github.com/Xerhs/Alea/releases">releases page</a>. Builds are reproducible from source.</p><p class="lang-el">Πάρε το <code>alea-x86_64-usb.img</code> και το <code>SHA256SUMS</code> από τη <a href="https://github.com/Xerhs/Alea/releases">σελίδα εκδόσεων</a>. Οι εκδόσεις είναι αναπαραγώγιμες από τον πηγαίο κώδικα.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Verify the checksum</h3><h3 class="lang-el">Επαλήθευσε το checksum</h3><p class="lang-en">Confirm the image matches <code>SHA256SUMS</code> before writing it. The release is signed with a detached SSH signature (<code>SHA256SUMS.sig</code>) you can verify against the committed keyring.</p><p class="lang-el">Επιβεβαίωσε ότι η εικόνα ταιριάζει με το <code>SHA256SUMS</code> πριν τη γράψεις. Η έκδοση υπογράφεται με αποσπασμένη υπογραφή SSH (<code>SHA256SUMS.sig</code>) που μπορείς να επαληθεύσεις με το keyring του αποθετηρίου.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Flash the whole USB</h3><h3 class="lang-el">Γράψε ολόκληρο το USB</h3><p class="lang-en">Write the raw image to a USB device with Rufus (DD mode), balenaEtcher, or <code>dd</code>. It is a full GPT disk image.</p><p class="lang-el">Γράψε την ακατέργαστη εικόνα σε συσκευή USB με Rufus (λειτουργία DD), balenaEtcher, ή <code>dd</code>. Είναι μια πλήρης εικόνα δίσκου GPT.</p></div></div>
+      <div class="step"><span class="n"></span><div><h3 class="lang-en">Boot on real hardware</h3><h3 class="lang-el">Εκκίνησε σε πραγματικό υλικό</h3><p class="lang-en">Disable Secure Boot (the payload is unsigned), boot the USB in UEFI mode. Alea refuses virtualization, so the full ceremony only runs on a real machine.</p><p class="lang-el">Απενεργοποίησε το Secure Boot (το φορτίο είναι ανυπόγραφο), εκκίνησε το USB σε λειτουργία UEFI. Το Alea απορρίπτει την εικονικοποίηση, οπότε η πλήρης τελετή τρέχει μόνο σε πραγματικό μηχάνημα.</p></div></div>
     </div>
-    <div class="note"><b>Rehearse first.</b> A desktop rehearsal edition (public test vectors only, permanently watermarked, <em>never</em> a real generator) lets you practice every screen and mechanically cross-check the implementation against its reference before you ever use real entropy. There is also an <a href="https://github.com/Xerhs/Alea/tree/master/web">offline web verifier</a> — a single self-contained HTML file running the same Rust core as WebAssembly (verification only; it never generates) for cross-checking a seed's fingerprint and addresses on a computer you take offline.</div>
+    <div class="note lang-en"><b>Rehearse first.</b> A desktop rehearsal edition (public test vectors only, permanently watermarked, <em>never</em> a real generator) lets you practice every screen and mechanically cross-check the implementation against its reference before you ever use real entropy. There is also an <a href="https://github.com/Xerhs/Alea/tree/master/web">offline web verifier</a> — a single self-contained HTML file running the same Rust core as WebAssembly (verification only; it never generates) for cross-checking a seed's fingerprint and addresses on a computer you take offline.</div>
+    <div class="note lang-el"><b>Δοκίμασε πρώτα.</b> Μια έκδοση εξάσκησης για desktop (μόνο δημόσια διανύσματα ελέγχου, μόνιμα υδατογραφημένη, <em>ποτέ</em> πραγματική γεννήτρια) σου επιτρέπει να εξασκηθείς σε κάθε οθόνη και να διασταυρώσεις μηχανικά την υλοποίηση με την αναφορά της πριν χρησιμοποιήσεις ποτέ πραγματική εντροπία. Υπάρχει επίσης ένας <a href="https://github.com/Xerhs/Alea/tree/master/web">offline web verifier</a> — ένα μόνο αυτοτελές αρχείο HTML που τρέχει τον ίδιο πυρήνα Rust ως WebAssembly (μόνο επαλήθευση· ποτέ δεν δημιουργεί) για διασταύρωση του αποτυπώματος και των διευθύνσεων μιας φράσης σε έναν υπολογιστή που παίρνεις offline.</div>
   </div>
 </section>
 
 <section id="security">
   <div class="wrap">
-    <p class="kicker">Security posture</p>
-    <h2>Honest about the ceiling, not a marketing floor.</h2>
-    <p>Alea's own stated limit is that it provides a small, auditable, pre-operating-system workflow that removes the desktop OS from seed generation and documents the firmware, hardware, release and physical trust assumptions that remain. It makes no claim to be unbreakable, trustless, or equivalent to a hardware wallet — those framings are permanently prohibited in this project, gates met or not.</p>
+    <p class="kicker lang-en">Security posture</p>
+    <p class="kicker lang-el">Στάση ασφαλείας</p>
+    <h2 class="lang-en">Honest about the ceiling, not a marketing floor.</h2>
+    <h2 class="lang-el">Ειλικρινές για το ανώτατο όριο, όχι ένα μάρκετινγκ κατώφλι.</h2>
+    <p class="lang-en">Alea's own stated limit is that it provides a small, auditable, pre-operating-system workflow that removes the desktop OS from seed generation and documents the firmware, hardware, release and physical trust assumptions that remain. It makes no claim to be unbreakable, trustless, or equivalent to a hardware wallet — those framings are permanently prohibited in this project, gates met or not.</p>
+    <p class="lang-el">Το δηλωμένο όριο του ίδιου του Alea είναι ότι παρέχει μια μικρή, ελέγξιμη ροή εργασίας πριν το λειτουργικό σύστημα, που αφαιρεί το desktop OS από τη δημιουργία της φράσης και τεκμηριώνει τις παραδοχές εμπιστοσύνης που παραμένουν για firmware, υλικό, έκδοση και φυσικό περιβάλλον. Δεν ισχυρίζεται ότι είναι άθραυστο, trustless, ή ισοδύναμο με hardware wallet — αυτές οι διατυπώσεις απαγορεύονται μόνιμα σε αυτό το έργο, είτε έχουν επιτευχθεί οι πύλες είτε όχι.</p>
     <ul class="checks">
-      <li><b>Threat model &amp; trade-offs</b> — what "trusted" and "reduced" mean, concretely: <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">SECURITY.md</a></li>
-      <li><b>Entropy integrity audit</b> — the full derivation + RNG-robustness trace: <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">docs/ENTROPY-AUDIT.md</a></li>
-      <li><b>Reproduce it yourself</b> — rebuild the payload and compare hashes; run the independent Python reference against the frozen vectors.</li>
-      <li><b>Report a vulnerability</b> — see the reporting section of SECURITY.md.</li>
+      <li class="lang-en"><b>Threat model &amp; trade-offs</b> — what "trusted" and "reduced" mean, concretely: <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">SECURITY.md</a></li>
+      <li class="lang-el"><b>Μοντέλο απειλών &amp; αντισταθμίσεις</b> — τι σημαίνουν συγκεκριμένα το «trusted» και το «reduced»: <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">SECURITY.md</a></li>
+      <li class="lang-en"><b>Entropy integrity audit</b> — the full derivation + RNG-robustness trace: <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">docs/ENTROPY-AUDIT.md</a></li>
+      <li class="lang-el"><b>Έλεγχος ακεραιότητας εντροπίας</b> — η πλήρης παραγωγή + ιχνηλάτηση αντοχής RNG: <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">docs/ENTROPY-AUDIT.md</a></li>
+      <li class="lang-en"><b>External audit &amp; remediation</b> — the 2026 GPT 5.6 Sol audit and the fixes: <a href="https://github.com/Xerhs/Alea/blob/master/docs/GPT-5.6-SOL-AUDIT-2026-08-09.md">audit</a> · <a href="https://github.com/Xerhs/Alea/blob/master/docs/AFTER-AUDIT-REMEDIATION-2026-08-09.md">remediation</a></li>
+      <li class="lang-el"><b>Εξωτερικός έλεγχος &amp; αποκατάσταση</b> — ο έλεγχος GPT 5.6 Sol του 2026 και οι διορθώσεις: <a href="https://github.com/Xerhs/Alea/blob/master/docs/GPT-5.6-SOL-AUDIT-2026-08-09.md">έλεγχος</a> · <a href="https://github.com/Xerhs/Alea/blob/master/docs/AFTER-AUDIT-REMEDIATION-2026-08-09.md">αποκατάσταση</a></li>
+      <li class="lang-en"><b>Reproduce it yourself</b> — rebuild the payload and compare hashes; run the independent Python reference against the frozen vectors.</li>
+      <li class="lang-el"><b>Αναπαρήγαγέ το μόνος σου</b> — ξαναχτίσε το φορτίο και σύγκρινε τα hashes· τρέξε την ανεξάρτητη αναφορά Python στα παγωμένα διανύσματα.</li>
     </ul>
   </div>
 </section>
@@ -250,31 +293,63 @@
   <div class="wrap">
     <div>
       <span class="brand">ALEA<span class="dot">·</span></span>
-      <p style="color:var(--cap);font-size:13.5px;margin:12px 0 0;max-width:34ch">Air-gapped, open-source BIP39 recovery-phrase generation, before the OS.</p>
+      <p class="lang-en" style="color:var(--cap);font-size:13.5px;margin:12px 0 0;max-width:34ch">Air-gapped, open-source BIP39 recovery-phrase generation, before the OS.</p>
+      <p class="lang-el" style="color:var(--cap);font-size:13.5px;margin:12px 0 0;max-width:34ch">Δημιουργία φράσης ανάκτησης BIP39 ανοιχτού κώδικα, σε απομονωμένο περιβάλλον, πριν το λειτουργικό.</p>
     </div>
     <div class="cols">
-      <div><b>Project</b>
+      <div><b class="lang-en">Project</b><b class="lang-el">Έργο</b>
         <a href="https://github.com/Xerhs/Alea">Source · GitHub</a>
-        <a href="https://github.com/Xerhs/Alea/releases">Releases</a>
+        <a href="https://github.com/Xerhs/Alea/releases"><span class="lang-en">Releases</span><span class="lang-el">Εκδόσεις</span></a>
         <a href="https://github.com/Xerhs/Alea/blob/master/README.md">README</a>
       </div>
-      <div><b>Docs</b>
-        <a href="explained.html">Explained (EN/ΕΛ)</a>
-        <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md">Security</a>
-        <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md">Entropy audit</a>
-        <a href="https://github.com/Xerhs/Alea/blob/master/QUICKSTART.md">Quickstart</a>
+      <div><b class="lang-en">Docs</b><b class="lang-el">Τεκμηρίωση</b>
+        <a href="https://github.com/Xerhs/Alea/blob/master/SECURITY.md"><span class="lang-en">Security</span><span class="lang-el">Ασφάλεια</span></a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/docs/ENTROPY-AUDIT.md"><span class="lang-en">Entropy audit</span><span class="lang-el">Έλεγχος εντροπίας</span></a>
+        <a href="https://github.com/Xerhs/Alea/blob/master/QUICKSTART.md"><span class="lang-en">Quickstart</span><span class="lang-el">Γρήγορη εκκίνηση</span></a>
         <a href="https://github.com/Xerhs/Alea/tree/master/web">Offline web verifier</a>
       </div>
-      <div><b>License</b>
+      <div><b class="lang-en">License</b><b class="lang-el">Άδεια</b>
         <a href="https://github.com/Xerhs/Alea/blob/master/LICENSE-MIT">MIT</a>
         <a href="https://github.com/Xerhs/Alea/blob/master/LICENSE-APACHE">Apache-2.0</a>
       </div>
     </div>
   </div>
   <div class="wrap">
-    <p class="fineprint">Experimental security software. Alea has not completed the stable-release security gates defined in its specification; every production-capable build displays this warning before generation. Nothing on this page is investment advice or a security guarantee. Dual-licensed MIT OR Apache-2.0.</p>
+    <p class="fineprint lang-en">Experimental security software. Alea has not completed the stable-release security gates defined in its specification; every production-capable build displays this warning before generation. Nothing on this page is investment advice or a security guarantee. Dual-licensed MIT OR Apache-2.0.</p>
+    <p class="fineprint lang-el">Πειραματικό λογισμικό ασφαλείας. Το Alea δεν έχει ολοκληρώσει τις πύλες ασφαλείας σταθερής έκδοσης που ορίζονται στην προδιαγραφή του· κάθε έκδοση ικανή για παραγωγή εμφανίζει αυτή την προειδοποίηση πριν τη δημιουργία. Τίποτα σε αυτή τη σελίδα δεν αποτελεί επενδυτική συμβουλή ή εγγύηση ασφαλείας. Διπλή άδεια MIT OR Apache-2.0.</p>
   </div>
 </footer>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  var titles={
+    en:"Alea — air-gapped Bitcoin recovery-phrase generator",
+    el:"Alea — γεννήτρια φράσης ανάκτησης Bitcoin σε απομονωμένο περιβάλλον"
+  };
+  function set(l){
+    if(l!=="el"){l="en";}
+    root.lang=l;
+    if(titles[l]){document.title=titles[l];}
+    var btns=document.querySelectorAll("[data-lang-btn]");
+    for(var i=0;i<btns.length;i++){
+      btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-lang-btn")===l?"true":"false");
+    }
+    try{localStorage.setItem("alea-lang",l);}catch(e){}
+  }
+  var saved=null;
+  try{saved=localStorage.getItem("alea-lang");}catch(e){}
+  var nav=(navigator.language||navigator.userLanguage||"").toLowerCase();
+  set(saved || (nav.indexOf("el")===0 ? "el" : "en"));
+  document.addEventListener("click",function(e){
+    var t=e.target;
+    while(t && t!==document){
+      if(t.getAttribute && t.getAttribute("data-lang-btn")){ set(t.getAttribute("data-lang-btn")); break; }
+      t=t.parentNode;
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
