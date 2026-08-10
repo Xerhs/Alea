@@ -1,0 +1,21 @@
+# Pinned RustSec advisory-db snapshot for the deterministic offline
+# release advisory gate (ALEA-2026-008). See supply-chain/README.md.
+#
+# `commit` is the rustsec/advisory-db commit the offline release gate
+# (`cargo deny --offline check advisories`, WP4) checks against.
+# `snapshot_date` is that commit's date; `advisory-db-age` fails the
+# release closed if today is more than `max_age_days` past it, so a
+# stale pin cannot silently stop catching new advisories. Bump both
+# fields (and the vendored snapshot itself) together when refreshing.
+#
+# NOTE (WP4 / open decision): the vendored snapshot content — whether a
+# git submodule under supply-chain/advisory-db/ or a checksummed tarball
+# — is not yet committed; `cargo-deny` is likewise not yet wired into
+# ci.sh. This lock + `advisory-db-age` enforce the freshness policy; the
+# snapshot vendoring and the actual gate run land in WP4 once the
+# submodule-vs-tarball choice is made. The commit below is the current
+# rustsec/advisory-db HEAD recorded at authoring time.
+
+commit = "565436d86a136c840d01ad4a7851fc7391295404"
+snapshot_date = "2026-08-09"
+max_age_days = 30

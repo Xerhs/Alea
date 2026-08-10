@@ -18,14 +18,20 @@
 //!   or `SHA256SUMS` itself could not be read/parsed.
 //! - `2` — `SHA256SUMS.minisig` was present and `minisign` positively
 //!   reported it as INVALID.
-//! - `3` — `SHA256SUMS.minisig` was present but could NOT be
-//!   cryptographically authenticated (no `--pubkey` was given, or the
-//!   `minisign` binary is missing) — printed as a WARNING, but this is
-//!   deliberately a *distinct nonzero* exit code, never `0`, so a
-//!   caller/CI script that gates on the exit code alone cannot mistake
-//!   "we never actually checked the signature" for "the signature
-//!   verified". The SHA256SUMS hash check may still have passed; that
-//!   alone proves nothing about a compromised source (SPEC §10).
+//! - `2` — a `SHA256SUMS.sig` (SSH) signature was present and
+//!   `ssh-keygen -Y verify` positively reported it INVALID (ALEA-2026-007).
+//! - `3` — a detached signature (`SHA256SUMS.minisig` or `SHA256SUMS.sig`)
+//!   was present but could NOT be cryptographically authenticated (no
+//!   `--pubkey`/`--allowed-signers`+`--signer-identity` supplied, or the
+//!   `minisign`/`ssh-keygen` binary is missing) — printed as a WARNING,
+//!   but a *distinct nonzero* exit, never `0`, so a caller/CI script
+//!   gating on the exit code alone cannot mistake "we never actually
+//!   checked the signature" for "the signature verified". **Also** the
+//!   exit code when `--require-signature` is given and NO detached
+//!   signature file exists at all (ALEA-2026-007: authenticated mode must
+//!   fail closed on a release that ships no signature). The SHA256SUMS
+//!   hash check may still have passed; that alone proves nothing about a
+//!   compromised source (SPEC §10).
 //! - `4` — only reachable with `--check-manifest` (see below): the
 //!   release directory is missing one or more of the fifteen files SPEC
 //!   §32 names as required, or contains a desktop-test-edition artifact
@@ -44,7 +50,8 @@
 //! full-release-assembly step) by passing the flag.
 use release_verifier::manifest::{check_manifest, ManifestEntry};
 use release_verifier::{
-    check_minisig, verify_sha256sums, EntryResult, MinisigStatus, MINISIG_NAME, SHA256SUMS_NAME,
+    check_minisig, check_ssh_sig, verify_sha256sums, EntryResult, MinisigStatus, SshSigStatus,
+    MINISIG_NAME, SHA256SUMS_NAME, SSH_SIG_NAME,
 };
 use std::env;
 use std::fs;
@@ -53,11 +60,16 @@ use std::process::ExitCode;
 
 fn usage(prog: &str) -> String {
     format!(
-        "usage: {prog} <release-dir> [--pubkey <minisign-pubkey-or-@keyfile>] [--minisign-bin <path>] [--check-manifest] [--unsigned]\n\n\
+        "usage: {prog} <release-dir> [--pubkey <minisign-pubkey-or-@keyfile>] [--minisign-bin <path>]\n\
+         \x20            [--allowed-signers <path> --signer-identity <id>] [--ssh-keygen-bin <path>]\n\
+         \x20            [--require-signature] [--check-manifest] [--unsigned]\n\n\
          Verifies <release-dir>/{SHA256SUMS_NAME} against the files it lists (SPEC §10, §32),\n\
-         and, if <release-dir>/{MINISIG_NAME} exists, checks it with the `minisign` CLI\n\
-         (see VERIFYING-MEDIA.md if `minisign` is not installed — no signature crypto is\n\
-         vendored in this tool).\n\n\
+         and any detached signature over it: {SSH_SIG_NAME} via `ssh-keygen -Y verify` against\n\
+         an OUT-OF-BAND --allowed-signers keyring (never one bundled in the release dir), and/or\n\
+         the legacy {MINISIG_NAME} via the `minisign` CLI. No signature crypto is vendored here\n\
+         (see VERIFYING-MEDIA.md if a tool is not installed).\n\n\
+         --require-signature makes a release that ships NO detached signature at all exit nonzero\n\
+         (authenticated mode); by default a missing signature is a warning, not a failure.\n\n\
          --check-manifest additionally verifies that <release-dir> contains every file SPEC\n\
          §32 requires in a stable release and no desktop-test-edition artifact (SPEC §32,\n\
          §37, §4.3); opt-in because it assumes a complete release directory, not just a\n\
@@ -75,6 +87,10 @@ struct Args {
     release_dir: PathBuf,
     pubkey: Option<String>,
     minisign_bin: String,
+    ssh_keygen_bin: String,
+    allowed_signers: Option<String>,
+    signer_identity: Option<String>,
+    require_signature: bool,
     check_manifest: bool,
     unsigned: bool,
 }
@@ -83,6 +99,10 @@ fn parse_args(mut argv: impl Iterator<Item = String>) -> Result<Args, String> {
     let mut release_dir = None;
     let mut pubkey = None;
     let mut minisign_bin = "minisign".to_string();
+    let mut ssh_keygen_bin = "ssh-keygen".to_string();
+    let mut allowed_signers = None;
+    let mut signer_identity = None;
+    let mut require_signature = false;
     let mut check_manifest = false;
     let mut unsigned = false;
 
@@ -102,6 +122,18 @@ fn parse_args(mut argv: impl Iterator<Item = String>) -> Result<Args, String> {
             "--minisign-bin" => {
                 minisign_bin = argv.next().ok_or("--minisign-bin requires a value")?;
             }
+            "--allowed-signers" => {
+                allowed_signers = Some(argv.next().ok_or("--allowed-signers requires a value")?);
+            }
+            "--signer-identity" => {
+                signer_identity = Some(argv.next().ok_or("--signer-identity requires a value")?);
+            }
+            "--ssh-keygen-bin" => {
+                ssh_keygen_bin = argv.next().ok_or("--ssh-keygen-bin requires a value")?;
+            }
+            "--require-signature" => {
+                require_signature = true;
+            }
             "--check-manifest" => {
                 check_manifest = true;
             }
@@ -119,6 +151,10 @@ fn parse_args(mut argv: impl Iterator<Item = String>) -> Result<Args, String> {
         release_dir,
         pubkey,
         minisign_bin,
+        ssh_keygen_bin,
+        allowed_signers,
+        signer_identity,
+        require_signature,
         check_manifest,
         unsigned,
     })
@@ -224,6 +260,74 @@ fn main() -> ExitCode {
             // check happened, so this must not be exit-code 0.
             worst_exit = worst_exit.max(3);
         }
+    }
+
+    // ALEA-2026-007: the current release ships an SSH SHA256SUMS.sig, not
+    // minisign. Check it against a caller-supplied, out-of-band trust root
+    // (never a keyring bundled in the release dir — ALEA-2026-001).
+    println!();
+    println!("== {SSH_SIG_NAME} ==");
+    let ssh = check_ssh_sig(
+        &args.release_dir,
+        &args.ssh_keygen_bin,
+        args.allowed_signers.as_deref(),
+        args.signer_identity.as_deref(),
+    );
+    match &ssh {
+        SshSigStatus::NotPresent => {
+            println!("(no {SSH_SIG_NAME} in this release directory — nothing to check)");
+        }
+        SshSigStatus::Verified => {
+            println!(
+                "PASS: ssh-keygen verified {SHA256SUMS_NAME} against the supplied allowed_signers."
+            );
+        }
+        SshSigStatus::Invalid { stderr } => {
+            println!("FAIL: ssh-keygen reported an INVALID signature.");
+            if !stderr.is_empty() {
+                println!("  ssh-keygen said: {stderr}");
+            }
+            worst_exit = worst_exit.max(2);
+        }
+        SshSigStatus::NoTrustRoot => {
+            println!(
+                "WARNING: {SSH_SIG_NAME} is present but no --allowed-signers + --signer-identity \
+                 were given, so it was NOT checked."
+            );
+            println!("  The trust root must come from an out-of-band channel, NOT this release");
+            println!("  directory (see VERIFYING-MEDIA.md §0a). Manual verification:");
+            println!(
+                "    ssh-keygen -Y verify -f <allowed_signers> -I <signer-id> -n file -s {} < {}",
+                args.release_dir.join(SSH_SIG_NAME).display(),
+                args.release_dir.join(SHA256SUMS_NAME).display()
+            );
+            worst_exit = worst_exit.max(3);
+        }
+        SshSigStatus::ToolMissing { manual_command } => {
+            println!(
+                "WARNING: `{}` was not found; SSH signature was NOT checked automatically.",
+                args.ssh_keygen_bin
+            );
+            println!("  Verify manually (see VERIFYING-MEDIA.md):");
+            println!("    {manual_command}");
+            worst_exit = worst_exit.max(3);
+        }
+    }
+
+    // --require-signature: authenticated mode. A release that ships NO
+    // detached signature at all must fail closed (never exit 0) — this is
+    // the core ALEA-2026-007 regression fix, the case the old minisign-only
+    // path silently passed.
+    if args.require_signature
+        && !ssh.is_present()
+        && matches!(minisig, MinisigStatus::NotPresent)
+    {
+        println!();
+        println!(
+            "FAIL: --require-signature was given but this release ships no {SSH_SIG_NAME} or \
+             {MINISIG_NAME}."
+        );
+        worst_exit = worst_exit.max(3);
     }
 
     if args.check_manifest {

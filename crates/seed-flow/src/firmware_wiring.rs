@@ -203,7 +203,16 @@ impl PlatformGate for ProdPlatformGate {
     fn check(&mut self) -> PlatformCheckResult {
         let cpuid = virt::cpuid::RealCpuid;
         let firmware = virt::firmware::uefi_backend::SystemTableFirmwareStrings;
-        let report = virt::report::evaluate(&cpuid, &firmware);
+        // ALEA-2026-005: include the PCI bus-0 device sweep in the real
+        // production gate (previously `evaluate` ran CPUID + firmware
+        // strings only, leaving the implemented `evaluate_with_devices`
+        // detector unused — see docs/AUDIT-STATUS.md). `scan_bus_zero`
+        // classifies inline and returns only virtual-marker matches, so a
+        // real machine's many benign bus-0 functions cannot crowd out a
+        // virtual GPU/input marker; a read failure fails open (this is an
+        // honest-mistake guard, NOT proof of bare metal — SPEC §11.2).
+        let devices = virt::devpath::uefi_backend::scan_bus_zero();
+        let report = virt::report::evaluate_with_devices(&cpuid, &firmware, &devices);
         PlatformCheckResult {
             outcome: if report.suspected() {
                 CheckOutcome::Failed

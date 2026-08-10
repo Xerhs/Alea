@@ -391,6 +391,26 @@ mod tests {
         );
     }
 
+    /// ALEA-2026-005: a virtual marker at the LAST populated slot (not the
+    /// first) is still detected — `evaluate_with_devices` scans the whole
+    /// source, it does not stop at the first entry. (In production
+    /// `scan_bus_zero` pre-filters to matches, so a marker can never be
+    /// crowded out of the buffer by benign devices in the first place; this
+    /// pins the report layer's no-early-stop half of that guarantee.)
+    #[test]
+    fn virtual_marker_at_last_slot_is_still_detected() {
+        let mut ids = [PciId { vendor: 0x8086, device: 0x1912 }; MAX_PCI_IDS]; // benign fill
+        let last = MAX_PCI_IDS - 1;
+        ids[last] = PciId { vendor: 0x1AF4, device: 0x1050 }; // virtio-gpu marker
+        let devices = FakeDevices {
+            ids,
+            count: MAX_PCI_IDS,
+        };
+        let report = evaluate_with_devices(&bare_metal_cpuid(), &no_firmware_strings(), &devices);
+        assert!(report.suspected(), "marker at the last slot must be detected");
+        assert_eq!(report.summary(), NOT_PROOF_DETECTED);
+    }
+
     #[test]
     fn ordinary_pci_id_does_not_cause_false_positive() {
         let mut ids = [PciId { vendor: 0, device: 0 }; MAX_PCI_IDS];

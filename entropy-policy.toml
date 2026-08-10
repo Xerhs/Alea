@@ -157,7 +157,11 @@ max_read_retries = 3
 # parser rejects `sole_source_allowed = true` outright.
 # ---------------------------------------------------------------------------
 [tpm2]
-approved = false
+# Approved for hardware testing (2026-08-10): TPM 2.0 verified on the main
+# PC and TPM 1.2 on the Dell. NOTE: tpm2.approved also gates the TPM 1.2
+# path (firmware_wiring::tpm_probe short-circuits to "policy off" when this
+# is false), so both [tpm2] and [tpm12] must be approved together.
+approved = true
 sole_source_allowed = false
 max_bytes_per_call = 32
 retry_limit = 3
@@ -176,7 +180,10 @@ allowed_manufacturers = []
 # [tpm2]; same absent counts_toward_floor key.
 # ---------------------------------------------------------------------------
 [tpm12]
-approved = false
+# Approved for hardware testing (2026-08-10): TPM 1.2 verified on the Dell.
+# Separate review decision from [tpm2]; both must be approved for the 1.2
+# path to light up (see the [tpm2] note above).
+approved = true
 sole_source_allowed = false
 max_bytes_per_call = 32
 retry_limit = 3

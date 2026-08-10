@@ -20,7 +20,7 @@
 //! module doc (`lib.rs`) already documents as out of scope for automated
 //! tooling. What it *does* prove mechanically is the thing a spec-
 //! conformance audit can otherwise only eyeball: that a release cannot
-//! be assembled (per this tool's gate) missing one of the fifteen named
+//! be assembled (per this tool's gate) missing one of the sixteen named
 //! files, or carrying the desktop test edition alongside the production
 //! artifacts.
 #![forbid(unsafe_code)]
@@ -29,13 +29,18 @@ use std::path::Path;
 
 /// The exact release-artifact file list SPEC §32 requires ("Every stable
 /// release contains:" — the fenced block immediately below that
-/// sentence). Order matches the spec text. This is the FULL fifteen-file
+/// sentence). Order matches the spec text. This is the FULL sixteen-file
 /// list (core files + signature files); see [`SIGNATURE_FILES`] for the
 /// subset that a legitimately UNSIGNED beta release lacks.
 pub const REQUIRED_RELEASE_FILES: &[&str] = &[
     "alea-x86_64-unsigned.efi",
     "alea-x86_64-signed.efi",
     "alea-x86_64-usb.img",
+    // ALEA-2026-002: the standalone cross-device verifier ships as a
+    // release asset and MUST be covered by the signed checksum manifest
+    // like every other executable; it was previously omitted here and
+    // from the release SHA256SUMS command (fixed in release.yml, WP4).
+    "alea-verify.efi",
     "alea-source.tar.gz",
     "SHA256SUMS",
     "SHA256SUMS.minisig",
@@ -59,6 +64,18 @@ pub const REQUIRED_RELEASE_FILES: &[&str] = &[
 /// plain `SHA256SUMS` checksums themselves (only the detached
 /// `.minisig` signature over them is optional).
 pub const SIGNATURE_FILES: &[&str] = &["alea-x86_64-signed.efi", "SHA256SUMS.minisig"];
+
+/// The detached checksum-signature file names a signed release may carry
+/// over `SHA256SUMS` (ALEA-2026-003/007): the current SSH form
+/// (`SHA256SUMS.sig`, `ssh-keygen -Y sign`) and the legacy minisign form
+/// (`SHA256SUMS.minisig`). A signed release satisfies the checksum-
+/// signature requirement with **at least one** of these present — the
+/// release switched to `.sig` but `.minisig` stays recognized for
+/// back-compat. `SHA256SUMS.minisig` remains listed in
+/// [`REQUIRED_RELEASE_FILES`] for reporting/ordering, but
+/// [`ManifestReport::is_complete`] treats its absence as satisfied when a
+/// `SHA256SUMS.sig` is present instead (see [`ManifestReport::checksum_sig_present`]).
+pub const CHECKSUM_SIGNATURE_FILES: &[&str] = &["SHA256SUMS.sig", "SHA256SUMS.minisig"];
 
 /// The always-required subset of [`REQUIRED_RELEASE_FILES`]: every named
 /// file except the two [`SIGNATURE_FILES`]. Required in both signed and
@@ -126,13 +143,19 @@ pub struct ManifestReport {
     /// `false` (an honest unsigned beta; their absence is OK). Drives
     /// [`ManifestReport::is_complete`].
     pub require_signatures: bool,
+    /// True when at least one [`CHECKSUM_SIGNATURE_FILES`] entry
+    /// (`SHA256SUMS.sig` or `SHA256SUMS.minisig`) is present in the
+    /// directory (ALEA-2026-003/007). A signed-mode release satisfies its
+    /// checksum-signature requirement via this flag rather than
+    /// specifically requiring the legacy `.minisig`.
+    pub checksum_sig_present: bool,
 }
 
 impl ManifestReport {
     /// True only when every *required-in-this-mode* file is present AND
     /// no forbidden desktop-test-edition artifact was found.
     ///
-    /// The thirteen core files (everything in [`REQUIRED_RELEASE_FILES`]
+    /// The fourteen core files (everything in [`REQUIRED_RELEASE_FILES`]
     /// except [`SIGNATURE_FILES`]) are always required. The two
     /// signature files (`alea-x86_64-signed.efi`,
     /// `SHA256SUMS.minisig`) are required only when this report was
@@ -145,6 +168,14 @@ impl ManifestReport {
             && self.required.iter().all(|entry| match entry {
                 ManifestEntry::Present { .. } => true,
                 ManifestEntry::Missing { filename } => {
+                    // ALEA-2026-003/007: a missing legacy `SHA256SUMS.minisig`
+                    // is satisfied when the current `SHA256SUMS.sig` is
+                    // present instead (either form is an acceptable checksum
+                    // signature), regardless of mode.
+                    if CHECKSUM_SIGNATURE_FILES.contains(filename) {
+                        return !self.require_signatures || self.checksum_sig_present;
+                    }
+                    // The signed EFI has no alternate form.
                     !self.require_signatures && SIGNATURE_FILES.contains(filename)
                 }
             })
@@ -217,10 +248,15 @@ pub fn check_manifest(release_dir: &Path, require_signatures: bool) -> ManifestR
         .cloned()
         .collect();
 
+    let checksum_sig_present = entries
+        .iter()
+        .any(|e| CHECKSUM_SIGNATURE_FILES.contains(&e.as_str()));
+
     ManifestReport {
         required,
         forbidden_present,
         require_signatures,
+        checksum_sig_present,
     }
 }
 
@@ -249,9 +285,9 @@ mod tests {
 
     /// Empty directory: every required file is missing, none present.
     /// Checked in signed mode (require_signatures: true) — the strict
-    /// case where all fifteen files are required.
+    /// case where all sixteen files are required.
     #[test]
-    fn empty_dir_reports_all_fifteen_files_missing() {
+    fn empty_dir_reports_all_required_files_missing() {
         let dir = fresh_dir("empty");
         let report = check_manifest(&dir, true);
         assert!(!report.is_complete());
@@ -346,7 +382,7 @@ mod tests {
         assert_eq!(report.missing().len(), REQUIRED_RELEASE_FILES.len());
     }
 
-    /// An "unsigned-complete" release directory — the thirteen core files
+    /// An "unsigned-complete" release directory — the fourteen core files
     /// present, `SHA256SUMS` itself included, but neither
     /// `alea-x86_64-signed.efi` nor `SHA256SUMS.minisig` present — MUST
     /// pass with `require_signatures: false` (an honest unsigned beta)
@@ -363,7 +399,7 @@ mod tests {
         let unsigned_report = check_manifest(&dir, false);
         assert!(
             unsigned_report.is_complete(),
-            "an unsigned release with all 13 core files and no signature files must pass \
+            "an unsigned release with all core files and no signature files must pass \
              require_signatures: false, missing: {:?}",
             unsigned_report.missing()
         );
@@ -379,7 +415,54 @@ mod tests {
         assert_eq!(signed_report.missing(), SIGNATURE_FILES.to_vec());
     }
 
-    /// A fully-complete directory (all fifteen files, including both
+    /// ALEA-2026-003/007: a signed release carrying the current
+    /// `SHA256SUMS.sig` (SSH) instead of the legacy `SHA256SUMS.minisig`
+    /// MUST pass signed mode — the `.sig` satisfies the checksum-signature
+    /// requirement.
+    #[test]
+    fn ssh_signed_release_with_only_sha256sums_sig_is_complete_signed_mode() {
+        let dir = fresh_dir("ssh-signed-complete");
+        for f in core_required_files() {
+            touch(&dir, f);
+        }
+        touch(&dir, "alea-x86_64-signed.efi");
+        touch(&dir, "SHA256SUMS.sig"); // current form; NO .minisig
+        let report = check_manifest(&dir, true);
+        assert!(
+            report.checksum_sig_present,
+            "SHA256SUMS.sig must count as a checksum signature"
+        );
+        assert!(
+            report.is_complete(),
+            "a signed release with SHA256SUMS.sig (no .minisig) must pass signed mode, missing: {:?}",
+            report.missing()
+        );
+    }
+
+    /// ALEA-2026-003/007: signed mode requires at least ONE checksum
+    /// signature — a directory with the signed EFI but neither `.sig` nor
+    /// `.minisig` fails signed mode (but passes unsigned mode).
+    #[test]
+    fn signed_mode_requires_at_least_one_checksum_signature() {
+        let dir = fresh_dir("signed-no-checksum-sig");
+        for f in core_required_files() {
+            touch(&dir, f);
+        }
+        touch(&dir, "alea-x86_64-signed.efi"); // signed EFI present, but no .sig/.minisig
+        let signed = check_manifest(&dir, true);
+        assert!(!signed.checksum_sig_present);
+        assert!(
+            !signed.is_complete(),
+            "signed mode must fail with no checksum signature at all"
+        );
+        let unsigned = check_manifest(&dir, false);
+        assert!(
+            unsigned.is_complete(),
+            "unsigned mode tolerates a missing checksum signature"
+        );
+    }
+
+    /// A fully-complete directory (all sixteen files, including both
     /// signature files) MUST pass in both modes: unsigned mode never
     /// penalizes signature files that happen to be present.
     #[test]

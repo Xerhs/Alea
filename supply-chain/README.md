@@ -62,3 +62,40 @@ cargo vet fmt                              # canonicalise the store before commi
 
 Never widen the record to make the gate pass without review — that defeats its
 only purpose.
+
+## RustSec advisory gate (ALEA-2026-008)
+
+`cargo vet` answers "were these exact dependency versions reviewed / pinned?"
+It does **not** answer "did a version in `Cargo.lock` later become the subject
+of a newly published RustSec advisory?" A separate, advisory-scoped
+`cargo-deny` check covers that, in two tiers that preserve Alea's offline,
+deterministic release builds:
+
+- **Scheduled online monitor** (`.github/workflows/audit.yml`, WP4): weekly
+  `cargo deny check advisories` against the **live** RustSec DB. Never runs on
+  push/PR/tag, so it cannot affect build determinism; a new advisory surfaces
+  as a job failure.
+- **Deterministic release gate** (`ci.sh`, WP4): `cargo deny --offline check
+  advisories` against a **pinned** advisory-db snapshot, so two clean builds of
+  the same tag agree. The pin lives in `supply-chain/advisory-db.lock` (commit
+  + date + `max_age_days`), and `advisory-db-age` (`tools/release-verifier`)
+  fails the release **closed** if the pinned snapshot is older than
+  `max_age_days` — a stale pin cannot silently stop catching advisories. The
+  online monitor covers the window between snapshot bumps.
+
+Scope: `deny.toml` configures **advisories only** — bans/licenses/sources stay
+owned by this `cargo vet` record and the SPEC §31 checker, never duplicated.
+
+Honesty: a green advisory gate proves only "no RustSec-published advisory
+matches the pinned graph as of the snapshot date." It is not an audit, not a
+safety attestation, and `cargo vet` is not a substitute — both are used.
+
+Bumping the snapshot: update the vendored advisory-db content and set both
+`commit` and `snapshot_date` in `advisory-db.lock` to the new pin.
+
+**WP4 / open decision (not yet landed):** the vendored snapshot itself (git
+submodule under `supply-chain/advisory-db/` vs a checksummed tarball) and the
+`cargo deny` invocations in `ci.sh`/`ci.yml`/`release.yml` are deferred to the
+workflow work package; `cargo-deny` is not yet a pinned build tool here. The
+lock file and `advisory-db-age` above are the freshness-enforcement half,
+implemented and host-tested now.

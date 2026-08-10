@@ -1,0 +1,36 @@
+# cargo-deny configuration — ADVISORIES ONLY (ALEA-2026-008).
+#
+# This file scopes cargo-deny strictly to RustSec security-advisory
+# checking. It deliberately does NOT configure [bans], [licenses], or
+# [sources]: dependency pinning, allowed sources, and the review/exemption
+# record are already owned by `cargo vet` (supply-chain/) and the SPEC §31
+# dependency-policy checker (tools/release-verifier). Duplicating them here
+# would create two disagreeing sources of truth. cargo-deny is added ONLY
+# to answer the one question cargo vet does not: "does the resolved
+# Cargo.lock contain a version with a *newly published* RustSec advisory?"
+#
+# Two-tier usage (see supply-chain/README.md):
+#   - scheduled ONLINE monitor  → `cargo deny check advisories` vs the live DB
+#   - deterministic RELEASE gate → `cargo deny --offline check advisories`
+#     against the pinned snapshot (supply-chain/advisory-db.lock), guarded
+#     by `advisory-db-age` so the pinned snapshot cannot drift stale.
+#
+# Honesty: a green advisory check proves only "no RustSec advisory matches
+# the pinned graph as of the snapshot date." It is NOT an audit, NOT a
+# safety attestation, and does not change Alea's EXPERIMENTAL / unaudited /
+# not-for-substantial-funds posture. An `ignore`d advisory below is an
+# explicit, documented acknowledgement — never a safety claim.
+
+[advisories]
+# Fail on any security advisory or unmaintained/unsound notice in the
+# resolved graph. `yanked = "deny"` also rejects a yanked crate version.
+version = 2
+yanked = "deny"
+# No advisories are currently ignored. Any future entry MUST carry a
+# comment: the advisory ID, why it does not apply (or the accepted risk),
+# and a review date — mirroring the honesty discipline of
+# supply-chain/audits.toml. Example (do not uncomment without review):
+#   ignore = [
+#     { id = "RUSTSEC-0000-0000", reason = "not reachable: <path>; reviewed 2026-08-10" },
+#   ]
+ignore = []

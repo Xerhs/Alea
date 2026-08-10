@@ -51,6 +51,14 @@ pub const SHA256SUMS_NAME: &str = "SHA256SUMS";
 /// contents list).
 pub const MINISIG_NAME: &str = "SHA256SUMS.minisig";
 
+/// The SSH detached-signature file name the current release process
+/// actually ships (`ssh-keygen -Y sign`, verified against the committed
+/// `allowed_signers` keyring). Added for ALEA-2026-007: the release
+/// switched from minisign to an SSH signature for the checksum manifest,
+/// but this tool only knew `SHA256SUMS.minisig` and silently passed the
+/// real release. Both names are recognized now; see [`check_ssh_sig`].
+pub const SSH_SIG_NAME: &str = "SHA256SUMS.sig";
+
 /// One parsed line of a `SHA256SUMS` file: a lowercase hex SHA-256
 /// digest and the release-relative file name it names, in the
 /// conventional `coreutils sha256sum` text format (`<hex>␠␠<name>`,
@@ -371,6 +379,124 @@ pub fn check_minisig(release_dir: &Path, minisign_bin: &str, pubkey: Option<&str
     }
 }
 
+/// Outcome of the SSH detached-signature check
+/// (`SHA256SUMS.sig` via `ssh-keygen -Y verify`, ALEA-2026-007). The SSH
+/// analogue of [`MinisigStatus`], with one extra variant: [`SshSigStatus::NoTrustRoot`]
+/// — an SSH signature cannot even be attempted without a caller-supplied
+/// `allowed_signers` keyring AND signer identity, and this tool
+/// deliberately refuses to fall back to a keyring bundled in the release
+/// directory itself (ALEA-2026-001: the trust root must come from an
+/// out-of-band channel, never the artifact being verified).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SshSigStatus {
+    /// `SHA256SUMS.sig` does not exist — nothing to check here.
+    NotPresent,
+    /// `ssh-keygen -Y verify` accepted the signature against the supplied
+    /// `allowed_signers`/identity.
+    Verified,
+    /// `ssh-keygen` ran and reported the signature INVALID (tampered
+    /// `SHA256SUMS`, wrong signer, or malformed signature).
+    Invalid { stderr: String },
+    /// No `ssh-keygen` binary was found; the exact manual command is
+    /// included so a caller can print it.
+    ToolMissing { manual_command: String },
+    /// `SHA256SUMS.sig` is present but no out-of-band `allowed_signers`
+    /// AND `--signer-identity` were supplied, so there is no trust root
+    /// to verify against (ALEA-2026-001). Never falls back to a
+    /// release-dir keyring.
+    NoTrustRoot,
+}
+
+impl SshSigStatus {
+    /// True for [`SshSigStatus::NotPresent`] or [`SshSigStatus::Verified`]
+    /// — nothing indicates tampering. `ToolMissing`/`NoTrustRoot` are
+    /// deliberately not "ok" (checked-nothing must differ from verified).
+    #[must_use]
+    pub fn definitely_not_bad(&self) -> bool {
+        matches!(self, SshSigStatus::NotPresent | SshSigStatus::Verified)
+    }
+
+    /// True only for [`SshSigStatus::Invalid`].
+    #[must_use]
+    pub fn is_invalid(&self) -> bool {
+        matches!(self, SshSigStatus::Invalid { .. })
+    }
+
+    /// True when a `SHA256SUMS.sig` file exists (any status except
+    /// [`SshSigStatus::NotPresent`]) — used by the `--require-signature`
+    /// gate to tell "a signature exists" from "none shipped".
+    #[must_use]
+    pub fn is_present(&self) -> bool {
+        !matches!(self, SshSigStatus::NotPresent)
+    }
+}
+
+/// Check `<release_dir>/SHA256SUMS.sig` against `<release_dir>/SHA256SUMS`
+/// with `ssh-keygen -Y verify` (ALEA-2026-007). Shells out to
+/// `ssh-keygen`, mirroring [`check_minisig`]'s no-vendored-crypto design.
+///
+/// `allowed_signers` is a path to an SSH allowed-signers file and
+/// `identity` is the signer principal (the email/name in that file) —
+/// **both must be supplied by the caller out-of-band**; when either is
+/// `None` this returns [`SshSigStatus::NoTrustRoot`] and NEVER falls back
+/// to a keyring found inside `release_dir` (ALEA-2026-001).
+///
+/// Returns [`SshSigStatus::NotPresent`] without any subprocess when
+/// `SHA256SUMS.sig` is absent.
+pub fn check_ssh_sig(
+    release_dir: &Path,
+    ssh_keygen_bin: &str,
+    allowed_signers: Option<&str>,
+    identity: Option<&str>,
+) -> SshSigStatus {
+    let sig_path = release_dir.join(SSH_SIG_NAME);
+    if !sig_path.is_file() {
+        return SshSigStatus::NotPresent;
+    }
+    let (Some(allowed), Some(id)) = (allowed_signers, identity) else {
+        return SshSigStatus::NoTrustRoot;
+    };
+    let sums_path = release_dir.join(SHA256SUMS_NAME);
+    let manual_command = format!(
+        "{ssh_keygen_bin} -Y verify -f {allowed} -I {id} -n file -s {sig} < {sums}",
+        sig = sig_path.display(),
+        sums = sums_path.display(),
+    );
+    // ssh-keygen -Y verify reads the signed payload (the SHA256SUMS bytes)
+    // from stdin.
+    let sums_bytes = match fs::read(&sums_path) {
+        Ok(b) => b,
+        Err(e) => {
+            return SshSigStatus::Invalid {
+                stderr: format!("could not read {SHA256SUMS_NAME} to verify its signature: {e}"),
+            }
+        }
+    };
+    let child = Command::new(ssh_keygen_bin)
+        .args(["-Y", "verify", "-f", allowed, "-I", id, "-n", "file", "-s"])
+        .arg(&sig_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn();
+    let mut child = match child {
+        Ok(c) => c,
+        Err(_) => return SshSigStatus::ToolMissing { manual_command },
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        let _ = stdin.write_all(&sums_bytes);
+        // drop stdin to send EOF
+    }
+    match child.wait_with_output() {
+        Ok(out) if out.status.success() => SshSigStatus::Verified,
+        Ok(out) => SshSigStatus::Invalid {
+            stderr: String::from_utf8_lossy(&out.stderr).trim().to_string(),
+        },
+        Err(_) => SshSigStatus::ToolMissing { manual_command },
+    }
+}
+
 /// Combined SHA256SUMS + minisig verdict for a release directory, plus
 /// the pieces of the SPEC §10 ceremony this tool cannot itself perform
 /// (documented so a CLI can print them as an explicit reminder rather
@@ -380,32 +506,57 @@ pub struct ReleaseReport {
     pub release_dir: PathBuf,
     pub sums: Result<Sha256sumsReport, VerifyError>,
     pub minisig: MinisigStatus,
+    /// SSH detached-signature verdict (`SHA256SUMS.sig`, ALEA-2026-007).
+    pub ssh: SshSigStatus,
 }
 
 impl ReleaseReport {
     /// Overall pass/fail for automated use (e.g. a CI gate or this
-    /// crate's own exit code): every `SHA256SUMS` entry matched AND the
-    /// minisig check did not positively fail. A missing `minisign`
-    /// binary or missing public key does *not* fail this — see
-    /// [`MinisigStatus::definitely_not_bad`] — because "could not
-    /// check" and "checked and it's wrong" are different findings that
-    /// SPEC §10's honesty requirement says must never be conflated.
+    /// crate's own exit code): every `SHA256SUMS` entry matched AND
+    /// neither the minisig nor the SSH signature check positively failed.
+    /// A missing tool or missing key/keyring does *not* fail this — see
+    /// [`MinisigStatus::definitely_not_bad`]/[`SshSigStatus::definitely_not_bad`]
+    /// — because "could not check" and "checked and it's wrong" are
+    /// different findings that SPEC §10's honesty requirement says must
+    /// never be conflated. A caller that wants "a valid signature MUST
+    /// exist" applies [`ReleaseReport::signature_present`] +
+    /// require-signature policy on top (see the CLI's `--require-signature`).
     #[must_use]
     pub fn passed(&self) -> bool {
         let sums_ok = matches!(&self.sums, Ok(r) if r.all_ok());
-        sums_ok && !self.minisig.is_invalid()
+        sums_ok && !self.minisig.is_invalid() && !self.ssh.is_invalid()
+    }
+
+    /// True when at least one detached-signature file (`.sig` or
+    /// `.minisig`) exists in the release directory, regardless of whether
+    /// it could be verified. The `--require-signature` gate distinguishes
+    /// "no signature shipped at all" (this is false) from "a signature
+    /// exists but we lacked the tool/key" (this is true).
+    #[must_use]
+    pub fn signature_present(&self) -> bool {
+        self.ssh.is_present() || !matches!(self.minisig, MinisigStatus::NotPresent)
     }
 }
 
 /// Run the full (automatable) check against a release directory (SPEC
-/// §10, §32).
-pub fn verify_release(release_dir: &Path, minisign_bin: &str, pubkey: Option<&str>) -> ReleaseReport {
+/// §10, §32), including both the legacy minisign and the current SSH
+/// detached-signature formats (ALEA-2026-007).
+pub fn verify_release(
+    release_dir: &Path,
+    minisign_bin: &str,
+    pubkey: Option<&str>,
+    ssh_keygen_bin: &str,
+    allowed_signers: Option<&str>,
+    signer_identity: Option<&str>,
+) -> ReleaseReport {
     let sums = verify_sha256sums(release_dir);
     let minisig = check_minisig(release_dir, minisign_bin, pubkey);
+    let ssh = check_ssh_sig(release_dir, ssh_keygen_bin, allowed_signers, signer_identity);
     ReleaseReport {
         release_dir: release_dir.to_path_buf(),
         sums,
         minisig,
+        ssh,
     }
 }
 
@@ -493,9 +644,101 @@ mod tests {
     #[test]
     fn verify_release_reports_missing_sums_file_as_error_not_panic() {
         let dir = fresh_dir("nosums");
-        let report = verify_release(&dir, "minisign", None);
+        let report = verify_release(&dir, "minisign", None, "ssh-keygen", None, None);
         assert!(report.sums.is_err());
         assert!(!report.passed());
+    }
+
+    #[test]
+    fn ssh_sig_not_present_when_no_sig_file() {
+        let dir = fresh_dir("no-ssh-sig");
+        let status = check_ssh_sig(&dir, "ssh-keygen", Some("/tmp/allowed"), Some("a@b"));
+        assert_eq!(status, SshSigStatus::NotPresent);
+        assert!(status.definitely_not_bad());
+        assert!(!status.is_present());
+    }
+
+    #[test]
+    fn ssh_sig_present_without_trust_root_is_no_trust_root() {
+        let dir = fresh_dir("ssh-sig-notrust");
+        write(&dir, SHA256SUMS_NAME, b"irrelevant");
+        write(&dir, SSH_SIG_NAME, b"fake ssh signature");
+        // No allowed_signers/identity supplied -> must NOT try, must NOT
+        // fall back to a release-dir keyring (ALEA-2026-001).
+        let status = check_ssh_sig(&dir, "ssh-keygen", None, None);
+        assert_eq!(status, SshSigStatus::NoTrustRoot);
+        assert!(!status.definitely_not_bad());
+        assert!(status.is_present());
+    }
+
+    #[test]
+    fn ssh_sig_present_with_nonexistent_binary_reports_tool_missing() {
+        let dir = fresh_dir("ssh-sig-notool");
+        write(&dir, SHA256SUMS_NAME, b"irrelevant");
+        write(&dir, SSH_SIG_NAME, b"fake ssh signature");
+        let status = check_ssh_sig(
+            &dir,
+            "definitely-not-a-real-ssh-keygen-xyz",
+            Some("/tmp/allowed_signers"),
+            Some("signer@example"),
+        );
+        match status {
+            SshSigStatus::ToolMissing { manual_command } => {
+                assert!(manual_command.contains("definitely-not-a-real-ssh-keygen-xyz"));
+                assert!(manual_command.contains("-Y verify"));
+            }
+            other => panic!("expected ToolMissing, got {other:?}"),
+        }
+    }
+
+    /// Host-gated end-to-end: if `ssh-keygen` exists, generate a throwaway
+    /// ed25519 key, build an allowed_signers, sign SHA256SUMS, and verify
+    /// it round-trips; then tamper SHA256SUMS and confirm Invalid. Skips
+    /// cleanly when ssh-keygen is unavailable.
+    #[test]
+    fn ssh_sig_end_to_end_verifies_and_detects_tamper() {
+        if Command::new("ssh-keygen").arg("-Q").output().is_err()
+            && Command::new("ssh-keygen").arg("--help").output().is_err()
+        {
+            eprintln!("skipping: ssh-keygen not available");
+            return;
+        }
+        let dir = fresh_dir("ssh-sig-e2e");
+        let key = dir.join("id");
+        // -N "" = no passphrase, -q quiet
+        let kg = Command::new("ssh-keygen")
+            .args(["-t", "ed25519", "-N", "", "-q", "-f"])
+            .arg(&key)
+            .output();
+        if kg.map(|o| !o.status.success()).unwrap_or(true) {
+            eprintln!("skipping: ssh-keygen keygen failed");
+            return;
+        }
+        let pubkey = fs::read_to_string(dir.join("id.pub")).unwrap();
+        let identity = "test@alea";
+        let allowed = dir.join("allowed_signers");
+        // "<principal> <keytype> <base64>"
+        let parts: Vec<&str> = pubkey.split_whitespace().collect();
+        fs::write(&allowed, format!("{identity} {} {}\n", parts[0], parts[1])).unwrap();
+        write(&dir, SHA256SUMS_NAME, b"the checksum list\n");
+        // sign
+        let sign = Command::new("ssh-keygen")
+            .args(["-Y", "sign", "-n", "file", "-f"])
+            .arg(&key)
+            .arg(dir.join(SHA256SUMS_NAME))
+            .output()
+            .unwrap();
+        assert!(sign.status.success(), "ssh-keygen -Y sign failed: {sign:?}");
+        // ssh-keygen writes <file>.sig
+        assert!(dir.join(SSH_SIG_NAME).is_file(), "expected SHA256SUMS.sig");
+
+        let ok = check_ssh_sig(&dir, "ssh-keygen", allowed.to_str(), Some(identity));
+        assert_eq!(ok, SshSigStatus::Verified, "valid signature must verify");
+
+        // Tamper the signed payload -> Invalid.
+        write(&dir, SHA256SUMS_NAME, b"the checksum list (tampered)\n");
+        let bad = check_ssh_sig(&dir, "ssh-keygen", allowed.to_str(), Some(identity));
+        assert!(bad.is_invalid(), "tampered SHA256SUMS must fail: {bad:?}");
     }
 
     #[test]
