@@ -45,6 +45,43 @@ bash "$VS" "$WORK/rel" "$WORK/allowed_signers" "$IDENTITY" >/dev/null 2>&1 \
   || fail "release-verify-signature: valid signature must pass"
 pass "release-verify-signature: valid signature passes"
 
+# ---- ALEA-AUDIT-001 fingerprint pin ----
+FPR="$(ssh-keygen -lf "$WORK/id.pub" | grep -oE 'SHA256:[A-Za-z0-9+/=]+' | head -n1)"
+
+# (b2) valid signature + correct fingerprint -> pass
+bash "$VS" "$WORK/rel" "$WORK/allowed_signers" "$IDENTITY" "$FPR" >/dev/null 2>&1 \
+  || fail "release-verify-signature: valid signature with correct fingerprint must pass"
+pass "release-verify-signature: correct fingerprint pin passes"
+
+# (b3) valid signature + wrong fingerprint -> fail
+if bash "$VS" "$WORK/rel" "$WORK/allowed_signers" "$IDENTITY" "SHA256:wrongfprwrongfprwrongfprwrongfprwrong00" >/dev/null 2>&1; then
+  fail "release-verify-signature: wrong fingerprint must fail"
+fi
+pass "release-verify-signature: wrong fingerprint pin fails"
+
+# (b4) ALEA-AUDIT-001 core: a rewritten allowed_signers rebinding the SAME
+# identity to an ATTACKER key (with an attacker signature) must FAIL the
+# out-of-band fingerprint pin — even though it would pass identity-only verify.
+ssh-keygen -t ed25519 -N "" -q -f "$WORK/attacker"
+AKT="$(awk '{print $1}' "$WORK/attacker.pub")"
+AKB="$(awk '{print $2}' "$WORK/attacker.pub")"
+printf '%s %s %s\n' "$IDENTITY" "$AKT" "$AKB" > "$WORK/allowed_signers_evil"
+# ssh-keygen -Y sign PROMPTS before overwriting an existing .sig and declines
+# non-interactively, so remove it before each re-sign (production signs once).
+rm -f "$WORK/rel/SHA256SUMS.sig"
+ssh-keygen -Y sign -n file -f "$WORK/attacker" "$WORK/rel/SHA256SUMS" >/dev/null 2>&1
+# sanity: identity-only verify against the evil keyring PASSES (this is the attack)
+bash "$VS" "$WORK/rel" "$WORK/allowed_signers_evil" "$IDENTITY" >/dev/null 2>&1 \
+  || fail "test setup: attacker keyring+sig should verify identity-only"
+# with the legit fingerprint pinned, it MUST fail
+if bash "$VS" "$WORK/rel" "$WORK/allowed_signers_evil" "$IDENTITY" "$FPR" >/dev/null 2>&1; then
+  fail "release-verify-signature: attacker-rebound identity must fail the fingerprint pin (ALEA-AUDIT-001)"
+fi
+pass "release-verify-signature: rebound-identity attacker key fails the fingerprint pin (ALEA-AUDIT-001)"
+# re-sign with the legit key so the tamper case below is over a legit signature
+rm -f "$WORK/rel/SHA256SUMS.sig"
+ssh-keygen -Y sign -n file -f "$WORK/id" "$WORK/rel/SHA256SUMS" >/dev/null 2>&1
+
 # (c) tampered SHA256SUMS -> fail
 printf 'the checksum list (tampered)\n' > "$WORK/rel/SHA256SUMS"
 if bash "$VS" "$WORK/rel" "$WORK/allowed_signers" "$IDENTITY" >/dev/null 2>&1; then

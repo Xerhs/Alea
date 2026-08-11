@@ -55,21 +55,33 @@ jobs:
           gh release download "$TAG" --dir relverify \
             --pattern SHA256SUMS --pattern SHA256SUMS.sig
 
-      - name: Verify the detached SSH signature (fail-closed) — ALEA-2026-003
+      - name: Verify the detached SSH signature (fail-closed) — ALEA-2026-003 + audit F/001
         env:
           EXPECTED_ID: ${{ vars.ALEA_TAG_SIGNER_ID }}
+          EXPECTED_FPR: ${{ vars.ALEA_TAG_SIGNER_FPR }}
         run: |
           set -euo pipefail
-          # ALEA_TAG_SIGNER_ID is the signer principal in allowed_signers
-          # (the noreply identity); set it in the protected `release`
-          # Environment alongside ALEA_TAG_SIGNER_FPR. Fail closed if unset
-          # — never publish without a verified signer identity.
+          # Both live in the protected `release` Environment. ALEA_TAG_SIGNER_ID
+          # is the signer principal in allowed_signers; ALEA_TAG_SIGNER_FPR is
+          # the signing key's SHA256 fingerprint. BOTH are required and both
+          # fail closed if unset — never a warning-only publish path.
+          #
+          # ALEA-AUDIT-001 (Gemini 3.1 Pro): allowed_signers here comes from the
+          # tag being published, so an identity-only check is insufficient — a
+          # rewritten keyring could bind the same identity to an attacker key.
+          # The fingerprint pin comes out-of-band from this Environment (not the
+          # tag), so a swapped key is rejected.
           if [ -z "${EXPECTED_ID:-}" ]; then
-            echo "FAIL: ALEA_TAG_SIGNER_ID is not set in the release Environment —"
-            echo "      cannot verify the release signature; refusing to publish."
+            echo "FAIL: ALEA_TAG_SIGNER_ID is not set in the release Environment — refusing to publish."
             exit 1
           fi
-          bash scripts/release-verify-signature.sh relverify allowed_signers "$EXPECTED_ID"
+          if [ -z "${EXPECTED_FPR:-}" ]; then
+            echo "FAIL: ALEA_TAG_SIGNER_FPR is not set in the release Environment —"
+            echo "      the second-phase publish requires an out-of-band fingerprint pin (audit F/001)."
+            echo "      Refusing to publish. Set it in docs/RELEASE-GOVERNANCE.md's 'release' Environment."
+            exit 1
+          fi
+          bash scripts/release-verify-signature.sh relverify allowed_signers "$EXPECTED_ID" "$EXPECTED_FPR"
 
       - name: Un-draft the release (make it public)
         env:

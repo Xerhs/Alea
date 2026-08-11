@@ -155,6 +155,17 @@ pub enum PipelineError<T> {
     /// today already prevents an empty source set from reaching this
     /// function in production.
     InsufficientSources,
+    /// More than [`crate::contracts::MAX_SOURCE_RECORDS`] source records
+    /// were assembled for one derivation — the fail-closed *ceiling* dual
+    /// of [`InsufficientSources`] (Gemini 3.1 Pro audit ALEA-AUDIT-002).
+    /// Today's policy keeps the count within bounds, but a future policy
+    /// expansion (approving EFI RNG, wiring USB TRNG, a wider source mix)
+    /// could exceed the canonical maximum; the assembler returns this
+    /// controlled error instead of indexing a fixed staging array out of
+    /// bounds and panicking in the pre-OS ceremony (SPEC §27.2: only
+    /// self-tests panic). The caller routes it into the same fatal
+    /// scrub-and-halt chain as any other derivation failure.
+    TooManySources,
 }
 
 // ============================================================================

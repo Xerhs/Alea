@@ -530,11 +530,20 @@ const EVENT_BUFFER_CAP: usize = 512;
 /// reallocated while growing — hence the [`EVENT_BUFFER_CAP`] pre-size that
 /// keeps the canonical entry paths reallocation-free.
 fn scrub_string(s: &mut alloc_free::String) {
-    // SAFETY: NUL (`0x00`) is valid UTF-8, so the buffer stays well-formed
-    // for the `clear()` below; we drop all of it immediately regardless.
-    let bytes = unsafe { s.as_mut_vec() };
-    for b in bytes.iter_mut() {
-        unsafe { core::ptr::write_volatile(b, 0) };
+    // Wipe the FULL allocation capacity, not just the live length
+    // (ALEA-AUDIT-003, Gemini 3.1 Pro): characters typed then deleted with
+    // backspace live above `len` in the same allocation, which an iter_mut()
+    // over initialized bytes would skip. Write every capacity byte volatilely
+    // behind a fence, then clear.
+    let cap = s.capacity();
+    if cap > 0 {
+        let ptr = s.as_mut_ptr();
+        for i in 0..cap {
+            // SAFETY: `ptr` is valid for `cap` bytes (the String owns that
+            // allocation); writing 0 leaves valid UTF-8 (NUL) for the live
+            // region and we clear() immediately regardless.
+            unsafe { core::ptr::write_volatile(ptr.add(i), 0) };
+        }
     }
     core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
     s.clear();
