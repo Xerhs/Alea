@@ -233,6 +233,10 @@ fn assert_pipeline_error_shape(e: &PipelineError<TranscriptError>) {
         // carries no source bytes, no digest, nothing derived from any
         // secret.
         PipelineError::InsufficientSources => {}
+        // Gemini 3.1 Pro audit ALEA-AUDIT-002: the fail-closed source-count
+        // *ceiling* (dual of `InsufficientSources`). Also a bare unit variant
+        // -- carries no source bytes, no digest, nothing secret-derived.
+        PipelineError::TooManySources => {}
     }
 }
 
