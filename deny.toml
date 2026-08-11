@@ -26,11 +26,29 @@
 # resolved graph. `yanked = "deny"` also rejects a yanked crate version.
 version = 2
 yanked = "deny"
-# No advisories are currently ignored. Any future entry MUST carry a
-# comment: the advisory ID, why it does not apply (or the accepted risk),
-# and a review date — mirroring the honesty discipline of
-# supply-chain/audits.toml. Example (do not uncomment without review):
-#   ignore = [
-#     { id = "RUSTSEC-0000-0000", reason = "not reachable: <path>; reviewed 2026-08-10" },
-#   ]
-ignore = []
+# Deterministic db location (repo-relative, inside the gitignored target/):
+# tools/release-verifier/scripts/advisory-check.sh fetches the advisory-db
+# here, pins it to supply-chain/advisory-db.lock's commit + verifies the
+# SHA, then runs `cargo deny --offline check advisories` against it. Fixing
+# the path here (rather than cargo-deny's per-user cache default) is what
+# lets the script find, pin, and verify the exact snapshot (ALEA-2026-008
+# remainder / audit finding F-06).
+db-path = "target/advisory-db"
+# Every entry MUST carry the advisory ID, why it does not apply (or the
+# accepted risk), and a review date — mirroring the honesty discipline of
+# supply-chain/audits.toml. An entry is a documented acknowledgement, never
+# a safety claim.
+ignore = [
+    # RUSTSEC-2026-0192 — `ttf-parser` is UNMAINTAINED (an upstream
+    # maintenance notice, NOT a security vulnerability: no CVE, and upstream
+    # states "no safe upgrade available"). It is reachable ONLY through the
+    # desktop *rehearsal* edition's GUI stack
+    # (seed-desktop-test → winit → sctk-adwaita → ab_glyph → ttf-parser) —
+    # a watermarked, public-test-vectors-only, never-a-real-generator build.
+    # It is NOT in the production UEFI binary (`cargo tree -p
+    # seed-uefi-production -i ttf-parser` finds no match; the seed-uefi-
+    # production/seed-desktop-test isolation is enforced by ci.sh) and NOT on
+    # any entropy/secret path. Accepted, font-parsing-in-a-rehearsal-window
+    # scope. Reviewed 2026-08-11 (Grok 4.5 Expert audit F-06).
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained (not a vuln); desktop-rehearsal GUI font parser only, absent from the production binary; reviewed 2026-08-11" },
+]

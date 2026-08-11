@@ -25,7 +25,7 @@ re-audit.
 | ALEA-2026-005 | Medium | PCI/device virtualization detector implemented but not wired into the gate | Fixed (+ hardware follow-up) |
 | ALEA-2026-006 | Medium | Mutable GitHub Action tags; release build job has repo write scope | Fixed |
 | ALEA-2026-007 | Medium | `release-verifier` does not authenticate the current release signature format | Fixed |
-| ALEA-2026-008 | Low | No automated RustSec advisory gate | Partially fixed (freshness gate landed; offline scan deferred) |
+| ALEA-2026-008 | Low | No automated RustSec advisory gate | Fixed (freshness gate + offline `cargo deny` landed 2026-08-11 — Grok F-06) |
 
 ## What was changed, per finding
 
@@ -92,12 +92,19 @@ signature (`ssh-keygen -Y verify`) against a caller-supplied
 
 ### ALEA-2026-008 (Low) — no RustSec advisory gate
 A pinned RustSec advisory-db snapshot (`supply-chain/advisory-db.lock`) plus a
-fail-closed **freshness** enforcer (`advisory-db-age`) now run in both `ci.sh`
-and the release workflow: a stale, missing, or future-dated snapshot fails the
-build. **Deferred:** the actual `cargo deny --offline check advisories` run
-against a vendored snapshot (submodule-vs-tarball decision) is not yet wired
-in; the freshness policy is enforced today, the offline scan lands with the
-vendoring decision. This gap is disclosed rather than silently skipped.
+fail-closed **freshness** enforcer (`advisory-db-age`) run in both `ci.sh` and
+the release workflow: a stale, missing, or future-dated snapshot fails the
+build. **Completed 2026-08-11** (Grok 4.5 Expert audit finding **F-06**, see
+[`GROK-4.5-EXPERT-AUDIT-2026-08-11.md`](GROK-4.5-EXPERT-AUDIT-2026-08-11.md)):
+the actual `cargo deny --offline check advisories` now runs.
+`tools/release-verifier/scripts/advisory-check.sh` fetches rustsec/advisory-db,
+pins it to the locked commit and verifies the SHA, then runs the offline check
+against that pinned snapshot — deterministic by the verified pin, with no
+advisory-db vendored into the repo. It is wired into `ci.sh` (and every release
+via the `full-ci` job); `cargo-deny` is a pinned CI tool (0.20.2). The one
+current `ignore` (RUSTSEC-2026-0192, `ttf-parser` unmaintained) is documented in
+`deny.toml`: it is reachable only via the desktop-rehearsal GUI stack and is
+absent from the production binary.
 
 ## Verification status
 

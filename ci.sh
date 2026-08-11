@@ -619,13 +619,18 @@ grep -qE '(--draft\b|--draft=true)' "$REL" \
     || { echo "FAIL: release.yml publish job no longer creates a DRAFT (ALEA-2026-003)."; exit 1; }
 echo "PASS: release.yml reuses ci.yml, needs full-ci, runs the trust gate, drafts only."
 
-# --- (c) advisory-db snapshot freshness (ALEA-2026-008) ---
-# Fail closed if the pinned RustSec advisory-db snapshot is stale, missing
-# or future-dated — the same enforcement release.yml runs, so a stale pin
-# is caught on push rather than at release time.
-echo "-- (c) advisory-db snapshot freshness gate --"
-cargo run --quiet -p release-verifier --bin advisory-db-age -- supply-chain/advisory-db.lock \
-    || { echo "FAIL: advisory-db snapshot freshness gate (ALEA-2026-008). See supply-chain/README.md."; exit 1; }
+# --- (c) RustSec advisory gate (ALEA-2026-008 / audit finding F-06) ---
+# The full deterministic advisory check: (1) fails closed if the pinned
+# advisory-db snapshot is stale/missing/future-dated (advisory-db-age),
+# (2) fetches rustsec/advisory-db and PINS it to the exact commit in
+# supply-chain/advisory-db.lock, verifying the SHA, then (3) runs
+# `cargo deny --offline check advisories` against that pinned snapshot. So
+# a dependency carrying a known RustSec advisory fails the build here rather
+# than silently entering a release. Needs network (to fetch the pinned
+# snapshot) and cargo-deny; the script fails closed if cargo-deny is absent.
+echo "-- (c) RustSec advisory gate (freshness + offline cargo-deny, pinned snapshot) --"
+bash tools/release-verifier/scripts/advisory-check.sh \
+    || { echo "FAIL: RustSec advisory gate (ALEA-2026-008 / F-06). See supply-chain/README.md + deny.toml."; exit 1; }
 
 # --- (d) release-authorization gate scripts host test (ALEA-2026-001/003/004) ---
 # Exercises tag-trust-gate.sh and release-verify-signature.sh against a
