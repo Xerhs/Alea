@@ -175,11 +175,20 @@ const EVENT_BUFFER_CAP: usize = 512;
 /// dice/coin event pre-image. Volatile zero writes behind a compiler fence,
 /// then clear. Defense-in-depth on this public/throwaway surface.
 fn scrub_string(s: &mut String) {
-    // SAFETY: NUL is valid UTF-8, so the buffer stays well-formed for the
-    // `clear()` below; we drop all of it immediately regardless.
-    let bytes = unsafe { s.as_mut_vec() };
-    for b in bytes.iter_mut() {
-        unsafe { core::ptr::write_volatile(b, 0) };
+    // Wipe the FULL allocation capacity, not just the live length
+    // (ALEA-AUDIT-003, Gemini 3.1 Pro): characters typed and then deleted with
+    // backspace live above `len` inside the same allocation, and an
+    // iter_mut() over the initialized bytes would skip them. Write every
+    // capacity byte volatilely behind a fence, then clear.
+    let cap = s.capacity();
+    if cap > 0 {
+        let ptr = s.as_mut_ptr();
+        for i in 0..cap {
+            // SAFETY: `ptr` is valid for `cap` bytes (the String owns that
+            // allocation). Writing 0 leaves valid UTF-8 (NUL) for the live
+            // region; we clear() immediately regardless.
+            unsafe { core::ptr::write_volatile(ptr.add(i), 0) };
+        }
     }
     core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
     s.clear();
@@ -1320,6 +1329,29 @@ pub fn run_over(out: &mut dyn TextOutput, mut next_key: impl FnMut() -> Key) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scrub_string_wipes_deleted_bytes_left_in_capacity() {
+        // ALEA-AUDIT-003 regression (Gemini 3.1 Pro): characters typed and
+        // then deleted (backspace) linger above `len` inside the same
+        // allocation. The old scrub (iter_mut over live bytes) skipped them;
+        // the fixed scrub wipes the FULL capacity.
+        let mut s = String::with_capacity(64);
+        s.push_str("correct horse battery staple");
+        let cap = s.capacity();
+        s.truncate(4); // simulate backspacing the rest; bytes remain > len
+        // A sensitive byte MUST currently sit above len (else the test proves
+        // nothing). 'o' (from "correct...") is beyond the kept "corr".
+        scrub_string(&mut s);
+        // The scrub zeroed the whole allocation; expose it as live bytes
+        // (safe: every byte is an initialized NUL now) and assert nothing
+        // sensitive remains anywhere in the buffer.
+        unsafe { s.as_mut_vec().set_len(cap) };
+        assert!(
+            s.as_bytes().iter().all(|&b| b == 0),
+            "scrub_string must wipe the full capacity, including deleted bytes above len",
+        );
+    }
 
     /// The SPEC §11.4 800x600 floor's line budget -- the fixed source of
     /// truth every screen in this file must fit as ONE screen (no in-page

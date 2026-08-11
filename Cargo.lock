@@ -1290,6 +1290,7 @@ dependencies = [
 name = "release-verifier"
 version = "0.1.0"
 dependencies = [
+ "seed-protocol",
  "sha2",
 ]
 

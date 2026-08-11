@@ -639,6 +639,16 @@ echo "-- (d) release gate-scripts host test --"
 bash scripts/tests/gate-scripts.test.sh \
     || { echo "FAIL: release gate-scripts host test (scripts/tests/gate-scripts.test.sh)."; exit 1; }
 
+# --- (e) stable-release policy lint (REPORT ONLY — Gemini audit F/004+005) ---
+# Surfaces entropy-policy states that are fine for EXPERIMENTAL builds but
+# would block a stable release (TPM approved with an empty manufacturer
+# allowlist; broad machine-only RDSEED sole-source). Report mode exits 0 so
+# it never fails the experimental build — it flags the config; the flip is a
+# human decision. A future stable-release gate runs it with --require-stable.
+echo "-- (e) stable-release policy lint (report; --require-stable enforces) --"
+cargo run --quiet -p release-verifier --bin policy-stable-lint -- entropy-policy.toml \
+    || { echo "FAIL: policy-stable-lint could not read/parse entropy-policy.toml."; exit 1; }
+
 echo "PASS: release-governance & workflow-security guards."
 
 echo "== ci.sh: all checks passed =="

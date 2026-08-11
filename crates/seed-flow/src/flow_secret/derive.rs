@@ -11,7 +11,7 @@
 //! production adapters, not `seed-test-vectors`' copies).
 
 use seed_core::arena::SecretArena;
-use seed_core::contracts::{ArchId, AddressBuf, DeriveError, PathStandard, SourceTag, TargetBits, WordCount};
+use seed_core::contracts::{ArchId, AddressBuf, DeriveError, MAX_SOURCE_RECORDS, PathStandard, SourceTag, TargetBits, WordCount};
 use seed_core::pipeline::{
     compute_extended_verification_values, compute_verification_values, derive_final_entropy, scrub_derivation_stage,
     scrub_transcript_stage, ExtendedVerificationValues, KeyDeriver, PipelineError, SourceInput, TranscriptSink,
@@ -120,25 +120,40 @@ pub fn derive(
     bits: TargetBits,
     policy_ver: u16,
 ) -> Result<WordCount, DeriveFlowError> {
-    let mut inputs = [empty_input(), empty_input(), empty_input(), empty_input(), empty_input()];
+    // Staging array sized to the canonical maximum (SPEC §19.1;
+    // `MAX_SOURCE_RECORDS`), NOT a hand-counted subset — the previous
+    // five-entry array could be indexed out of bounds and PANIC if a future
+    // policy expansion assembled more sources (Gemini 3.1 Pro audit
+    // ALEA-AUDIT-002). `SourceInput` is not `Copy` (it holds a byte-slice
+    // reference), so build the array element-wise.
+    let mut inputs: [SourceInput; MAX_SOURCE_RECORDS] = core::array::from_fn(|_| empty_input());
     let mut n = 0usize;
 
+    // Count what will be appended FIRST; if it exceeds the staging capacity,
+    // fail into the controlled error path (TooManySources) rather than
+    // indexing OOB. With the count checked up front, every append below is
+    // provably in bounds.
     let dice = staging.dice_bytes();
-    if !dice.is_empty() {
-        inputs[n] = SourceInput { tag: SourceTag::DiceRolls, algo_id: &[], bytes: dice };
-        n += 1;
-    }
     let coin = staging.coin_bytes();
-    if !coin.is_empty() {
-        inputs[n] = SourceInput { tag: SourceTag::CoinFlips, algo_id: &[], bytes: coin };
-        n += 1;
-    }
-    for acquired in machine.iter() {
-        inputs[n] = SourceInput { tag: acquired.tag(), algo_id: acquired.algo_id(), bytes: acquired.bytes() };
-        n += 1;
-    }
+    let want = (!dice.is_empty() as usize) + (!coin.is_empty() as usize) + machine.iter().count();
 
-    let result = derive_final_entropy(arena, FlowTranscript::new(), &inputs[..n], arch, bits, policy_ver);
+    let result = if want > MAX_SOURCE_RECORDS {
+        Err(PipelineError::TooManySources)
+    } else {
+        if !dice.is_empty() {
+            inputs[n] = SourceInput { tag: SourceTag::DiceRolls, algo_id: &[], bytes: dice };
+            n += 1;
+        }
+        if !coin.is_empty() {
+            inputs[n] = SourceInput { tag: SourceTag::CoinFlips, algo_id: &[], bytes: coin };
+            n += 1;
+        }
+        for acquired in machine.iter() {
+            inputs[n] = SourceInput { tag: acquired.tag(), algo_id: acquired.algo_id(), bytes: acquired.bytes() };
+            n += 1;
+        }
+        derive_final_entropy(arena, FlowTranscript::new(), &inputs[..n], arch, bits, policy_ver)
+    };
 
     // SPEC §19.4: "Immediately after final entropy is derived" -- run on
     // both outcomes, since a failed derivation must not leave raw source
@@ -361,6 +376,48 @@ mod tests {
             arena_b.final_entropy(),
             "adding a machine source must change the derived entropy"
         );
+    }
+
+    #[test]
+    fn max_source_set_does_not_panic_and_derives() {
+        // ALEA-AUDIT-002 regression (Gemini 3.1 Pro): dice + coin + the full
+        // 5-slot machine container is SEVEN source records — more than the old
+        // five-entry staging array, which would have indexed out of bounds and
+        // PANICKED at `inputs[5]`. With the array sized to MAX_SOURCE_RECORDS
+        // (8) and the up-front count guard, the widest assemblable set derives
+        // without panicking.
+        let mut arena = SecretArena::new();
+        let mut staging = PhysicalStaging::new();
+        for _ in 0..64 {
+            staging_push_dice_for_test(&mut staging, 3);
+        }
+        for _ in 0..64 {
+            staging.push_coin(1);
+        }
+        let mut machine = AcquiredSources::new();
+        for (tag, algo) in [
+            (SourceTag::ApprovedEfiRng, &b"EFIRNG"[..]),
+            (SourceTag::X86Rdseed64, &b"RDSEED64"[..]),
+            (SourceTag::X86RdrandSupplementary, &b"RDRAND64"[..]),
+            (SourceTag::ApprovedUsbTrng, &b"USBTRNG"[..]),
+            (SourceTag::Tpm2GetRandom, &b"TPM2GET"[..]),
+        ] {
+            machine.push(
+                crate::flow_secret::machine::AcquiredSource::new(tag, algo, &[7u8; 32]).unwrap(),
+            );
+        }
+        // 5 machine + dice + coin = 7 records (<= MAX_SOURCE_RECORDS = 8).
+        let r = derive(
+            &mut arena,
+            &mut staging,
+            &mut machine,
+            ArchId::X86_64,
+            TargetBits::Bits128,
+            1,
+        );
+        assert!(r.is_ok(), "max assemblable source set must derive, not panic: {r:?}");
+        assert!(staging.dice_bytes().is_empty(), "staging scrubbed after derivation");
+        assert!(machine.iter().next().is_none(), "machine scrubbed after derivation");
     }
 
     #[test]

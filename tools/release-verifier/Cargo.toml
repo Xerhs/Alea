@@ -24,6 +24,11 @@ path = "src/main.rs"
 # dependencies MUST be minimal and pinned). No extra features requested:
 # the streaming `Sha256` digest needs neither `alloc` nor `oid`.
 sha2 = { workspace = true }
+# Internal workspace crate (no new external dependency): the
+# `policy-stable-lint` bin parses entropy-policy.toml with the SAME parser
+# the firmware uses, so a stable-release policy check can never drift from
+# how the policy is actually interpreted (Gemini 3.1 Pro audit F/004+005).
+seed-protocol = { path = "../../crates/seed-protocol" }
 
 [dev-dependencies]
 # Same workspace-pinned `sha2` used by the crate itself (see the

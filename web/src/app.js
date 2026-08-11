@@ -49,11 +49,22 @@
   }
 
   // ---- Result rendering -----------------------------------------------------
-  function row(k, v) {
-    return '<div class="row"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + "</div></div>";
-  }
   function esc(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+  // ALEA-AUDIT-008 (Gemini 3.1 Pro): auto-escaping tagged template. Every
+  // interpolated `${value}` is passed through esc() automatically, so a future
+  // maintainer building result HTML CANNOT forget to escape a dynamic value —
+  // the static-template parts (`strings`) are the only unescaped HTML, exactly
+  // the "innerHTML for fixed templates only, escape all dynamic values" rule
+  // the audit recommends. Use `h\`...${dynamic}...\`` for every result string.
+  function h(strings, ...values) {
+    let out = strings[0];
+    for (let i = 0; i < values.length; i++) out += esc(values[i]) + strings[i + 1];
+    return out;
+  }
+  function row(k, v) {
+    return h`<div class="row"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   }
   function addrRows(o) {
     return (
@@ -73,7 +84,7 @@
     for (const k of ["retained_bits", "total_bits", "iancoleman_words", "accepted", "ignored"]) {
       if (o[k] !== undefined) extra += row(k, o[k]);
     }
-    return '<div class="err">Refused: ' + esc(o.error || "unknown") + "</div>" + extra;
+    return h`<div class="err">Refused: ${o.error || "unknown"}</div>` + extra;
   }
 
   // ---- Feature 1: rehearsal -------------------------------------------------
@@ -159,7 +170,7 @@
     const stdLabels = { bip44: "BIP44 (1…)", bip49: "BIP49 (3…)", bip84: "BIP84 (bc1q…)", bip86: "BIP86 (bc1p…)" };
     let rows = "";
     for (const a of o.addrs) {
-      rows += '<tr><td class="gi">' + esc(a.index) + '</td><td class="ga">' + esc(a.address) + "</td></tr>";
+      rows += h`<tr><td class="gi">${a.index}</td><td class="ga">${a.address}</td></tr>`;
     }
     const chainLabel = o.change === "1" ? "internal (change)" : "external (receive)";
     showResult(
@@ -227,10 +238,7 @@
     const banner = $("origin");
     let msg = "";
     if (proto === "http:" || proto === "https:") {
-      msg =
-        "You are running this from a WEB SERVER (" +
-        esc(proto) +
-        "). Download the .html file, verify its hash, DISCONNECT the network, and open it from a local file:// path instead.";
+      msg = h`You are running this from a WEB SERVER (${proto}). Download the .html file, verify its hash, DISCONNECT the network, and open it from a local file:// path instead.`;
     } else if (online) {
       msg =
         "Your browser reports it is ONLINE (advisory only — navigator.onLine can be wrong). For any sensitive use, disconnect Wi-Fi / pull the cable before continuing.";
