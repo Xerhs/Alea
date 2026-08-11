@@ -14,6 +14,28 @@ ssh-keygen -Y verify -f allowed_signers \
   -n file -s SHA256SUMS.sig < SHA256SUMS
 ```
 
+### What's new in v0.13.0-beta
+
+A **security-hardening** release driven by two independent external audits
+(Grok 4.5 Expert and Gemini 3.1 Pro). It changes no generated seed and fixes
+no user-facing bug — every item below is defensive.
+
+- **Derivation panic guard** — source assembly is now bounded by
+  `MAX_SOURCE_RECORDS` and fails closed (`TooManySources`) rather than risking
+  a future out-of-bounds panic mid-ceremony.
+- **Verifier memory hygiene** — `alea-verify` scrubs the full string capacity,
+  not just the live length (backspaced bytes are now wiped).
+- **Offline web verifier** — result HTML is escaped by construction, removing a
+  fragile `innerHTML` sink.
+- **Release integrity** — publishing now requires an out-of-band signer
+  fingerprint pin (fail-closed) and runs an offline RustSec advisory gate.
+- **TPM 2.0 / 1.2 entropy ships gated (unapproved)** — the machinery is present
+  and hardware-exercised, but awaits its manufacturer-review decision, exactly
+  like the EFI-RNG and USB-TRNG sources.
+
+Details: `docs/AFTER-GEMINI-AUDIT-REMEDIATION-2026-08-11.md` and
+`docs/GROK-4.5-EXPERT-AUDIT-2026-08-11.md`.
+
 ### Files
 
 - `alea-x86_64-usb.img` — the flashable USB image (production launcher at
