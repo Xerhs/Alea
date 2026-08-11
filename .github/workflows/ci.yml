@@ -94,6 +94,20 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
         run: cargo install cargo-vet --version 0.10.2 --locked
 
+      - name: Cache cargo-deny 0.20.2
+        id: cache-cargo-deny
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-0.20.2-x86_64-unknown-linux-gnu
+
+      - name: Install cargo-deny 0.20.2 (RustSec advisory gate, ALEA-2026-008 / F-06)
+        if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
+        env:
+          # Pinned; installed for the gnu target (never built for musl).
+          CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+        run: cargo install cargo-deny --version 0.20.2 --locked
+
       - name: Cache binaryen version_119
         id: cache-binaryen
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4

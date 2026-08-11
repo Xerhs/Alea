@@ -244,13 +244,15 @@ jobs:
       - name: Advisory-db snapshot freshness gate (ALEA-2026-008)
         run: |
           set -euo pipefail
-          # Fail-closed if the pinned RustSec advisory-db snapshot is stale,
-          # missing, or future-dated (see supply-chain/advisory-db.lock).
-          # NOTE: the actual `cargo deny --offline check advisories` run
-          # against the vendored snapshot is deferred to the WP4 remainder
-          # (cargo-deny install + submodule/tarball decision — see
-          # supply-chain/README.md); this freshness enforcement is the part
-          # that runs today.
+          # Belt-and-suspenders freshness assertion in build-and-gate. The
+          # FULL RustSec advisory gate — freshness + fetch/pin/verify the
+          # advisory-db at supply-chain/advisory-db.lock's commit +
+          # `cargo deny --offline check advisories` — now runs inside ci.sh
+          # (`tools/release-verifier/scripts/advisory-check.sh`), which the
+          # `full-ci` job above executes on this exact tagged commit. So the
+          # offline advisory check IS enforced for every release (ALEA-2026-008
+          # / audit F-06 — no longer deferred); this step just re-asserts the
+          # snapshot is fresh before the build.
           cargo build -p release-verifier --release --locked --bin advisory-db-age
           target/release/advisory-db-age supply-chain/advisory-db.lock
 

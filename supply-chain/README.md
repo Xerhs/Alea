@@ -90,12 +90,17 @@ Honesty: a green advisory gate proves only "no RustSec-published advisory
 matches the pinned graph as of the snapshot date." It is not an audit, not a
 safety attestation, and `cargo vet` is not a substitute — both are used.
 
-Bumping the snapshot: update the vendored advisory-db content and set both
-`commit` and `snapshot_date` in `advisory-db.lock` to the new pin.
+Bumping the snapshot: set both `commit` and `snapshot_date` in
+`advisory-db.lock` to the new pin (no in-repo content to update — see below).
 
-**WP4 / open decision (not yet landed):** the vendored snapshot itself (git
-submodule under `supply-chain/advisory-db/` vs a checksummed tarball) and the
-`cargo deny` invocations in `ci.sh`/`ci.yml`/`release.yml` are deferred to the
-workflow work package; `cargo-deny` is not yet a pinned build tool here. The
-lock file and `advisory-db-age` above are the freshness-enforcement half,
-implemented and host-tested now.
+**LANDED (Grok 4.5 Expert audit F-06, 2026-08-11):** the offline advisory gate
+now runs. Rather than vendor the advisory-db into the repo (submodule/tarball,
+both bloat clones), `tools/release-verifier/scripts/advisory-check.sh` **fetches**
+rustsec/advisory-db, **pins** it to `advisory-db.lock`'s `commit` and **verifies
+the SHA**, then runs `cargo deny --offline check advisories` against that pinned
+snapshot. It is wired into `ci.sh` (guard c) — and therefore into every release
+via `release.yml`'s `full-ci` job — and `cargo-deny` is a pinned CI tool
+(`ci.yml`, 0.20.2). Determinism comes from the verified pin, not from committing
+the database. Any accepted advisory is an explicit, dated `ignore` in `deny.toml`
+(e.g. RUSTSEC-2026-0192 `ttf-parser` unmaintained — reachable only via the
+desktop-rehearsal GUI stack, absent from the production binary).

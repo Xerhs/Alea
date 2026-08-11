@@ -8,13 +8,14 @@
 # stale pin cannot silently stop catching new advisories. Bump both
 # fields (and the vendored snapshot itself) together when refreshing.
 #
-# NOTE (WP4 / open decision): the vendored snapshot content — whether a
-# git submodule under supply-chain/advisory-db/ or a checksummed tarball
-# — is not yet committed; `cargo-deny` is likewise not yet wired into
-# ci.sh. This lock + `advisory-db-age` enforce the freshness policy; the
-# snapshot vendoring and the actual gate run land in WP4 once the
-# submodule-vs-tarball choice is made. The commit below is the current
-# rustsec/advisory-db HEAD recorded at authoring time.
+# RESOLVED (Grok 4.5 Expert audit F-06, 2026-08-11): rather than vendor the
+# whole advisory-db into the repo (submodule or tarball — both bloat clones),
+# CI FETCHES the advisory-db and PINS it to `commit` below, verifying the SHA
+# before use. `tools/release-verifier/scripts/advisory-check.sh` runs the
+# freshness gate (advisory-db-age) + the fetch/pin/verify + `cargo deny
+# --offline check advisories`, wired into ci.sh (and thus every release via
+# the full-ci job). Determinism comes from the verified pin; no in-repo
+# vendoring. Bump `commit`/`snapshot_date` together when refreshing the pin.
 
 commit = "565436d86a136c840d01ad4a7851fc7391295404"
 snapshot_date = "2026-08-09"
